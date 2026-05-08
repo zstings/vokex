@@ -23,6 +23,24 @@ document.getElementById("btn-win-create")?.addEventListener("click", async () =>
     log(`❌ 错误: ${error.message}`);
   }
 });
+document.getElementById("btn-win-create-remote")?.addEventListener("click", async () => {
+  clear();
+  log("=== browserWindow.create() ===");
+  try {
+    const newWin = await browserWindow.create({
+      title: `新窗口 - ${new Date().toLocaleTimeString()}`,
+      width: 1200,
+      height: 700,
+      icon: 'icon/icon.png',
+      url: 'https://www.baidu.com/',
+    });
+    log(`✅ 新窗口已创建，ID: ${newWin.getId()}`);
+    const allWindows = await browserWindow.getAll();
+    log(`当前共有 ${allWindows.length} 个窗口`);
+  } catch (error: any) {
+    log(`❌ 错误: ${error.message}`);
+  }
+});
 
 document.getElementById("btn-win-create-on")?.addEventListener("click", async () => {
   clear();
