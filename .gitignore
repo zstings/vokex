@@ -5,3 +5,4 @@ release/
 *.log
 prebuilt/*
 !prebuilt/*-x64*
+example/public/vokex-config.json
