@@ -40,6 +40,35 @@ document.getElementById("btn-win-create-remote")?.addEventListener("click", asyn
   } catch (error: any) {
     log(`❌ 错误: ${error.message}`);
   }
+  /**
+   * 危险api调用测试
+   * // 1. 读取文件
+    window.__VOKEX__.call('fs.readFile', {path: 'C:\\test.txt'});
+
+    // 2. 写入文件
+    window.__VOKEX__.call('fs.writeFile', {path: 'C:\\test.txt', content: 'hello'});
+
+    // 3. 执行命令
+    window.__VOKEX__.call('shell.execCommand', {command: 'dir'});
+
+    // 4. 终止进程
+    window.__VOKEX__.call('process.kill', {pid: 1234});
+
+    // 5. 保存对话框
+    window.__VOKEX__.call('dialog.showSaveDialog', {defaultPath: 'test.txt'});
+
+    // 6. 移动/复制文件
+    window.__VOKEX__.call('fs.moveFile', {src: 'a.txt', dest: 'b.txt'});
+   * 安全api调用测试
+   * // 1. 获取应用信息
+    window.__VOKEX__.call('app.getName');
+
+    // 2. 获取 CPU 信息
+    window.__VOKEX__.call('computer.getCpuInfo');
+
+    // 3. 获取内存信息
+    window.__VOKEX__.call('computer.getMemoryInfo');  
+   */
 });
 
 document.getElementById("btn-win-create-on")?.addEventListener("click", async () => {
