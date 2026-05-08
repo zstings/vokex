@@ -16,7 +16,7 @@ pub mod inject;
 /// 导出常用类型和函数
 pub use origin::PageOrigin;
 pub use url_parser::{parse_origin, is_local_url, is_dev_url, is_remote_url, get_host, is_same_origin};
-pub use dangerous_apis::{is_dangerous_api, is_restricted_api, is_safe_api, is_api_allowed_for_remote};
+pub use dangerous_apis::is_dangerous_api;
 pub use permissions::{SecurityConfig, check_api_permission};
 pub use inject::get_security_script;
 
