@@ -75,8 +75,44 @@ pub fn process_request(window_id: u32, body: &str) {
 
     eprintln!("[IPC] window_id={}, method={}", window_id, req.method);
 
+    // 安全检查：根据页面来源检查 API 调用权限
+    // 远端页面默认禁止调用危险 API，除非在配置中显式允许
+    if let Some(origin) = crate::window_manager::get_window_origin(window_id) {
+        let config = crate::app_config::get_config();
+        if let Err(e) = crate::security::check_api_permission(origin, &req.method, &config.security) {
+            eprintln!("[IPC] Permission denied: {}", e);
+            // 返回权限拒绝错误给前端
+            let response = IpcResponse {
+                id: req.id,
+                result: None,
+                error: Some(e),
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            let script = format!("window.__VOKEX_IPC__ && window.__VOKEX_IPC__({})", json);
+            crate::window_manager::eval(window_id, &script);
+            return;
+        }
+    }
+
     // browserWindow.create 需要在事件循环中创建窗口
     if req.method == "browserWindow.create" {
+        // 安全检查：远端页面加载控制
+        let config = crate::app_config::get_config();
+        let url = req.params.get("url").and_then(|v| v.as_str()).unwrap_or("");
+        if crate::security::is_remote_url(url) && !config.security.allow_remote_pages {
+            let e = "Permission denied: remote pages are not allowed. Set 'security.allow_remote_pages' to true in vokex-config.json to enable.";
+            eprintln!("[IPC] {}", e);
+            let response = IpcResponse {
+                id: req.id,
+                result: None,
+                error: Some(e.to_string()),
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            let script = format!("window.__VOKEX_IPC__ && window.__VOKEX_IPC__({})", json);
+            crate::window_manager::eval(window_id, &script);
+            return;
+        }
+
         PROXY.with(|p| {
             if let Some(proxy) = p.borrow().as_ref() {
                 let _ = proxy.send_event(crate::IpcTask::CreateWindow {

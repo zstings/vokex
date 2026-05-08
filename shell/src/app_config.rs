@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 use serde::Deserialize;
 use crate::Resources;
+use crate::security::SecurityConfig;
 
 #[derive(Deserialize, Default, Clone, Debug)]
 #[serde(default)]
@@ -14,6 +15,7 @@ pub struct AppConfigSx {
     pub devtools: bool,
     pub new_window: AppConfigNewWindow,
     pub is_dev: bool,
+    pub security: SecurityConfig,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]

@@ -15,6 +15,7 @@ mod utils;
 mod ipc;
 mod window_manager;
 mod apis;
+mod security;
 use utils::{load_image, get_webview_data_dir};
 #[cfg(target_os = "windows")]
 use wry::WebViewBuilderExtWindows;
@@ -191,7 +192,9 @@ fn build_webview(
         .with_ipc_handler(move |message| {
             ipc::handle_message(window_id, message);
         })
-        .with_initialization_script(ipc::get_init_script(window_id));
+        .with_initialization_script(ipc::get_init_script(window_id))
+        // 注入安全脚本：限制 iframe、验证 postMessage 来源
+        .with_initialization_script(crate::security::get_security_script());
 
     if !config.is_dev {
         if let Some(resources) = resources {
@@ -388,11 +391,12 @@ fn main() {
     };
     // 先分配 window_id，这样闭包和 init_script 都能用
     let window_id = window_manager::next_id();
+    let origin = security::parse_origin(&default_url);
     // 构建主窗口 WebView
     {
         let mut ctx = web_context.lock().unwrap();
         let webview = build_webview(&window, window_id, &default_url, &mut ctx, &resources).unwrap();
-        window_manager::register_with_id(window_id, window, webview);
+        window_manager::register_with_id(window_id, window, webview, origin, default_url.clone());
     }
 
     // ============================================================
@@ -499,13 +503,14 @@ fn main() {
                     .unwrap();
 
                 let new_window_id = window_manager::next_id();
+                let new_origin = security::parse_origin(&url);
                 let new_webview = {
                     let mut ctx = web_context.lock().unwrap();
                     let wv = build_webview(&new_window, new_window_id, &url, &mut ctx, &resources).unwrap();
                     wv
                 };
 
-                window_manager::register_with_id(new_window_id, new_window, new_webview);
+                window_manager::register_with_id(new_window_id, new_window, new_webview, new_origin, url);
 
                 let script = ipc::build_response_script(
                     callback_id,

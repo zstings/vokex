@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tao::window::{Window, WindowId};
 use wry::WebView;
 use serde::Serialize;
+use crate::security::origin::PageOrigin;
 
 /// 窗口信息
 #[derive(Debug, Clone, Serialize)]
@@ -18,6 +19,7 @@ pub struct WindowInfo {
     pub is_fullscreen: bool,
     pub is_focused: bool,
     pub is_visible: bool,
+    pub origin: String,
 }
 
 impl WindowEntry {
@@ -36,6 +38,7 @@ impl WindowEntry {
             is_fullscreen: self.window.fullscreen().is_some(),
             is_focused: self.window.is_focused(),
             is_visible: self.window.is_visible(),
+            origin: self.origin.to_string(),
         }
     }
 }
@@ -44,6 +47,10 @@ impl WindowEntry {
 pub struct WindowEntry {
     pub window: Window,
     pub webview: WebView,
+    /// 页面来源：Local/Dev/Remote，用于安全权限检查
+    pub origin: PageOrigin,
+    /// 页面 URL，用于追踪和同源验证
+    pub url: String,
 }
 
 /// 窗口管理器 - 存储所有窗口的 WebView
@@ -65,12 +72,12 @@ impl WindowManager {
     }
 
     /// 注册窗口，返回分配的窗口 ID
-    pub fn register(&mut self, window: Window, webview: WebView) -> u32 {
+    pub fn register(&mut self, window: Window, webview: WebView, origin: PageOrigin, url: String) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
         let tao_id = window.id();
         self.tao_to_vokex.insert(tao_id, id);
-        self.windows.insert(id, WindowEntry { window, webview });
+        self.windows.insert(id, WindowEntry { window, webview, origin, url });
         id
     }
 
@@ -123,6 +130,16 @@ impl WindowManager {
             None
         }
     }
+
+    /// 获取窗口的页面来源，用于安全权限检查
+    pub fn get_origin(&self, id: u32) -> Option<PageOrigin> {
+        self.windows.get(&id).map(|e| e.origin)
+    }
+
+    /// 获取窗口的页面 URL
+    pub fn get_url(&self, id: u32) -> Option<&str> {
+        self.windows.get(&id).map(|e| e.url.as_str())
+    }
 }
 
 // 全局单例，thread_local 因为只在主线程用
@@ -131,8 +148,8 @@ thread_local! {
 }
 
 /// 注册窗口，返回窗口 ID
-pub fn register(window: Window, webview: WebView) -> u32 {
-    MANAGER.with(|m| m.borrow_mut().register(window, webview))
+pub fn register(window: Window, webview: WebView, origin: PageOrigin, url: String) -> u32 {
+    MANAGER.with(|m| m.borrow_mut().register(window, webview, origin, url))
 }
 
 /// 注销窗口
@@ -160,11 +177,11 @@ pub fn next_id() -> u32 {
 }
 
 /// 用指定 ID 注册窗口（主窗口用，因为 ID 在 WebView 创建前就分配了）
-pub fn register_with_id(id: u32, window: Window, webview: WebView) {
+pub fn register_with_id(id: u32, window: Window, webview: WebView, origin: PageOrigin, url: String) {
     MANAGER.with(|m| {
         let tao_id = window.id();
         m.borrow_mut().tao_to_vokex.insert(tao_id, id);
-        m.borrow_mut().windows.insert(id, WindowEntry { window, webview });
+        m.borrow_mut().windows.insert(id, WindowEntry { window, webview, origin, url });
     });
 }
 
@@ -178,4 +195,14 @@ pub fn get_id_by_tao_id(tao_id: WindowId) -> Option<u32> {
 
 pub fn get_main_window_id() -> Option<u32> {
     MANAGER.with(|m| m.borrow().get_main_window_id())
+}
+
+/// 获取窗口的页面来源，用于安全权限检查
+pub fn get_window_origin(id: u32) -> Option<PageOrigin> {
+    MANAGER.with(|m| m.borrow().get_origin(id))
+}
+
+/// 获取窗口的页面 URL
+pub fn get_window_url(id: u32) -> Option<String> {
+    MANAGER.with(|m| m.borrow().get_url(id).map(|s| s.to_string()))
 }
