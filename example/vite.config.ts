@@ -20,6 +20,10 @@ export default defineConfig(({mode}) => {
         devtools: mode == 'development',
         new_window: {
           value: 1
+        },
+        security: {
+          allowed_remote_apis: ["fs.readFile", "computer.*"],
+          allow_remote_pages: true
         }
       }),
     ],

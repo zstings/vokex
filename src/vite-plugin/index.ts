@@ -79,6 +79,13 @@ export interface VokexPluginOptions {
     width?: number,
     heiught?: number,
   }
+  /** 安全配置 */
+  security?: {
+    /** 允许远端页面调用的危险 API 列表（支持通配符如 computer.*） */
+    allowed_remote_apis?: string[];
+    /** 是否允许加载远端页面 */
+    allow_remote_pages?: boolean;
+  }
 }
 
 /** 获取预编译壳路径 */
