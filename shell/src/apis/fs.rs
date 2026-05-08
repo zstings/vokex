@@ -1,5 +1,6 @@
 use serde_json::{json, Value};
 use std::io::Write;
+use glob::{glob_with, MatchOptions, Pattern};
 
 /// 处理 fs 模块的 API 调用
 pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
@@ -16,6 +17,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
         "fs.exists" => exists(params),
         "fs.copyFile" => copy_file(params),
         "fs.moveFile" => move_file(params),
+        "fs.glob" => glob(params),
         _ => Err(format!("Unknown fs method: {}", method)),
     }
 }
@@ -127,6 +129,80 @@ fn move_file(params: &Value) -> Result<Value, String> {
     std::fs::rename(source, destination)
         .map(|_| json!(null))
         .map_err(|e| e.to_string())
+}
+
+/// Glob 配置选项
+#[derive(serde::Deserialize)]
+pub struct GlobOptions {
+    pub cwd: Option<String>,
+    pub ignore: Option<Vec<String>>,
+    pub nodir: Option<bool>,
+    pub absolute: Option<bool>,
+    pub dot: Option<bool>,
+}
+
+fn glob(params: &Value) -> Result<Value, String> {
+    let opts: GlobOptions = serde_json::from_value(params.clone())
+        .map_err(|e| format!("Invalid glob options: {}", e))?;
+    
+    let pattern_str = params.get("pattern").and_then(|v| v.as_str()).unwrap_or("*");
+    
+    let pattern = opts.cwd.as_ref()
+        .map(|cwd| format!("{}/{}", cwd.trim_end_matches(['/', '\\']), pattern_str))
+        .unwrap_or_else(|| pattern_str.to_string());
+    
+    let match_opts = MatchOptions {
+        case_sensitive: cfg!(not(windows)),
+        require_literal_separator: false,
+        require_literal_leading_dot: !opts.dot.unwrap_or(false),
+    };
+    
+    let ignore_patterns: Vec<Pattern> = opts.ignore.as_ref()
+        .map(|ignores| ignores.iter()
+            .filter_map(|p| Pattern::new(p).ok())
+            .collect())
+        .unwrap_or_default();
+    
+    let nodir = opts.nodir.unwrap_or(false);
+    let absolute = opts.absolute.unwrap_or(false);
+    let cwd_path = std::env::current_dir().ok();
+    
+    let entries = glob_with(&pattern, match_opts)
+        .map_err(|e| format!("Invalid glob pattern: {}", e))?;
+    
+    let mut results: Vec<String> = entries
+        .filter_map(|entry| {
+            let path = entry.ok()?;
+            
+            let path_str = path.to_string_lossy();
+            if ignore_patterns.iter().any(|p| p.matches(&path_str)) {
+                return None;
+            }
+            
+            if nodir && path.is_dir() {
+                return None;
+            }
+            
+            let result = if absolute {
+                path.canonicalize()
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string()
+            } else {
+                cwd_path.as_ref()
+                    .and_then(|cwd| path.strip_prefix(cwd).ok())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path_str.to_string())
+            };
+            
+            Some(result)
+        })
+        .collect();
+    
+    results.sort();
+    results.dedup();
+    
+    Ok(json!(results))
 }
 
 fn base64_encode(bytes: &[u8]) -> String {

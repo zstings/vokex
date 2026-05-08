@@ -279,3 +279,54 @@ document.getElementById("btn-fs-move")?.addEventListener("click", async () => {
     log(`❌ 错误: ${error.message}`);
   }
 });
+
+document.getElementById("btn-fs-glob")?.addEventListener("click", async () => {
+  clear();
+  log("=== Glob 文件搜索测试 (glob crate) ===");
+
+  const appPath = await app.getAppPath();
+  const testDir = `${appPath}\\test_demo`;
+
+  try {
+    const dirExists = await fs.exists(testDir);
+    if (!dirExists) {
+      log(`⚠️ 测试目录不存在，先创建...`);
+      await fs.createDir(testDir);
+      for (let i = 1; i <= 3; i++) {
+        await fs.writeFile(`${testDir}\\file${i}.txt`, `内容 ${i}`);
+      }
+      await fs.createDir(`${testDir}\\subdir`);
+      await fs.writeFile(`${testDir}\\subdir\\nested.js`, `nested`);
+      await fs.writeFile(`${testDir}\\subdir\\data.json`, `{"test": true}`);
+      await fs.writeFile(`${testDir}\\.hidden.txt`, `隐藏文件`);
+    }
+
+    log(`1. 搜索 *.txt (单通配符):`);
+    const txtFiles = await fs.glob({ pattern: "*.txt", cwd: testDir });
+    txtFiles.forEach(f => log(`   📄 ${f}`));
+
+    log(`\n2. 搜索 **/*.js (递归):`);
+    const jsFiles = await fs.glob({ pattern: "**/*.js", cwd: testDir });
+    jsFiles.forEach(f => log(`   📄 ${f}`));
+
+    log(`\n3. 搜索 **/* (递归所有，不含隐藏文件):`);
+    const allFiles = await fs.glob({ pattern: "**/*", cwd: testDir });
+    log(`   找到 ${allFiles.length} 个文件/目录`);
+
+    log(`\n4. 搜索 **/* (含隐藏文件 dot=true):`);
+    const withDot = await fs.glob({ pattern: "**/*", cwd: testDir, dot: true });
+    log(`   找到 ${withDot.length} 个文件/目录`);
+
+    log(`\n5. 搜索 **/* (只返回文件 nodir=true):`);
+    const onlyFiles = await fs.glob({ pattern: "**/*", cwd: testDir, nodir: true });
+    log(`   找到 ${onlyFiles.length} 个文件`);
+
+    log(`\n6. 搜索 **/* (排除 *.txt ignore):`);
+    const noTxt = await fs.glob({ pattern: "**/*", cwd: testDir, ignore: ["*.txt"] });
+    log(`   找到 ${noTxt.length} 个文件/目录`);
+
+    log(`\n✅ Glob 测试完成`);
+  } catch (error: any) {
+    log(`❌ 错误: ${error.message}`);
+  }
+});

@@ -28,6 +28,24 @@ export interface FileInfo {
 
 
 /**
+ * GlobOptions glob 选项
+ */
+export interface GlobOptions {
+  /** glob 模式，如 '*.txt', '**\/*.js' */
+  pattern: string;
+  /** 搜索目录，默认当前目录 */
+  cwd?: string;
+  /** 排除模式列表 */
+  ignore?: string[];
+  /** 只返回文件，不返回目录 */
+  nodir?: boolean;
+  /** 返回绝对路径 */
+  absolute?: boolean;
+  /** 是否包含隐藏文件（以 . 开头） */
+  dot?: boolean;
+}
+
+/**
  * 文件系统 API 接口
  */
 export interface FsAPI {
@@ -55,6 +73,8 @@ export interface FsAPI {
   copyFile: (source: string, destination: string) => Promise<void>;
   /** 移动/重命名文件 */
   moveFile: (source: string, destination: string) => Promise<void>;
+  /** 使用 glob 模式搜索文件 */
+  glob: (options: GlobOptions) => Promise<string[]>;
 }
 
 /**
@@ -96,4 +116,7 @@ export const fs: FsAPI = {
 
   /** 移动/重命名文件 */
   moveFile: (source: string, destination: string): Promise<void> => vokexCall('fs.moveFile', { source, destination }),
+
+  /** 使用 glob 模式搜索文件 */
+  glob: (options: GlobOptions): Promise<string[]> => vokexCall('fs.glob', options),
 };
