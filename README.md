@@ -14,6 +14,9 @@
 - **双模式运行**：开发时加载 localhost，生产时从自身尾部读取资源
 - **丰富的 API**：14 个模块，112 个公开方法
 - **TypeScript 优先**：完整的类型支持
+- **安全沙箱**：远端页面默认禁用危险 API，支持白名单配置
+- **远程窗口**：支持加载远端 URL 创建子窗口
+- **文件搜索**：支持 glob 模式匹配（`*.txt`, `**/*.js`）
 
 ## 快速开始
 
@@ -257,6 +260,18 @@ import { fs } from "vokex.app";
 | `exists(path)` | 检查文件是否存在 |
 | `copyFile(src, dest)` | 复制文件 |
 | `moveFile(src, dest)` | 移动 / 重命名文件 |
+| `glob(options)` | glob 模式搜索文件 |
+
+**GlobOptions：**
+
+| 选项 | 类型 | 说明 |
+|---|---|---|
+| `pattern` | `string` | glob 模式，如 `*.txt`, `**/*.js` |
+| `cwd` | `string?` | 搜索目录，默认当前目录 |
+| `ignore` | `string[]?` | 排除模式列表 |
+| `nodir` | `boolean?` | 只返回文件，不返回目录 |
+| `absolute` | `boolean?` | 返回绝对路径 |
+| `dot` | `boolean?` | 是否包含隐藏文件（以 `.` 开头） |
 
 ### http - 网络请求
 
