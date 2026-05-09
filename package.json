@@ -1,6 +1,6 @@
 {
   "name": "vokex.app",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "超轻量级桌面应用构建库 - Vite 构建后一键打包为原生可执行文件",
   "type": "module",
   "main": "dist/index.js",
