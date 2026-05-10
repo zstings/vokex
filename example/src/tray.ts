@@ -9,7 +9,7 @@ document.getElementById("btn-tray-create")?.addEventListener("click", async () =
 
   try {
     currentTray = await tray.create({
-      icon: "icon/icon.png",
+      icon: "icon/icon.ico",
       tooltip: "Vokex 托盘示例",
       title: "Vokex Demo",
       menu: [

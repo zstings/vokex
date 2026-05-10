@@ -14,7 +14,7 @@ document.getElementById("btn-win-create")?.addEventListener("click", async () =>
       title: `新窗口 - ${new Date().toLocaleTimeString()}`,
       width: 1200,
       height: 700,
-      icon: 'icon/icon.png',
+      icon: 'icon/icon.ico',
     });
     log(`✅ 新窗口已创建，ID: ${newWin.getId()}`);
     const allWindows = await browserWindow.getAll();
@@ -31,7 +31,7 @@ document.getElementById("btn-win-create-remote")?.addEventListener("click", asyn
       title: `新窗口 - ${new Date().toLocaleTimeString()}`,
       width: 1200,
       height: 700,
-      icon: 'icon/icon.png',
+      icon: 'icon/icon.ico',
       url: 'https://www.baidu.com/',
     });
     log(`✅ 新窗口已创建，ID: ${newWin.getId()}`);

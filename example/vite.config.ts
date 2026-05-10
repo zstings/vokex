@@ -9,7 +9,10 @@ export default defineConfig(({mode}) => {
         name: "Vokex Demo",
         identifier: "com.vokex.vokex",
         version: version,
-        icon: "icon/icon.png",
+        icon: [
+          "icon/icon.ico",
+          "icon/32x32.png",
+        ],
         window: {
           title: "Vokex App Demo",
           width: 1200,
