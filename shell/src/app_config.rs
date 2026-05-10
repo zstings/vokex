@@ -9,7 +9,7 @@ pub struct AppConfigSx {
     pub identifier: String,
     pub name: String,
     pub version: String,
-    pub icon: String,
+    pub icon: Vec<String>,
     pub window: AppConfigWindowSx,
     pub dev_url: Option<String>,
     pub devtools: bool,
@@ -92,7 +92,7 @@ pub fn init_test_config() {
         identifier: "com.vokex.test".to_string(),
         name: "Vokex Test".to_string(),
         version: "0.1.0".to_string(),
-        icon: "".to_string(),
+        icon: vec![],
         window: AppConfigWindowSx {
             title: "Test".to_string(),
             width: 800,

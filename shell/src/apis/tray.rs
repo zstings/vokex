@@ -24,9 +24,9 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
     }
 }
 
-/// 加载托盘图标，复用 utils::load_png_rgba 然后创建 tray_icon::Icon
+/// 加载托盘图标，复用 utils::load_image_rgba 然后创建 tray_icon::Icon
 fn load_tray_icon(icon_path: &str) -> Result<Icon, String> {
-    let (rgba, width, height) = crate::utils::load_png_rgba(icon_path)
+    let (rgba, width, height) = crate::utils::load_image_rgba(icon_path)
         .ok_or_else(|| format!("Failed to load icon: {}", icon_path))?;
     Icon::from_rgba(rgba, width, height)
         .map_err(|e| format!("Failed to create tray icon: {}", e))

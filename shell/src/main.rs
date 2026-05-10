@@ -373,7 +373,8 @@ fn main() {
     }));
 
     // 创建窗口（标题、大小、图标 → WindowBuilder）WindowBuilder（窗口壳子）
-    let icon = load_image(&app_config.icon);
+    let icon = app_config.icon.iter()
+        .find_map(|p| load_image(p));
     let window = WindowBuilder::new()
         .with_title(app_config.window.title)
         .with_inner_size(tao::dpi::LogicalSize::new(app_config.window.width, app_config.window.height))
