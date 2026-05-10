@@ -14,6 +14,7 @@ import { NtExecutable, NtExecutableResource, Data, Resource } from "resedit";
 export function injectIcon(exePath: string, iconBuffer: Buffer): boolean {
   try {
     const exeBuf = readFileSync(exePath);
+    console.log(`[vokex:icon] 原始文件大小: ${exeBuf.length} bytes`);
 
     // Buffer → ArrayBuffer
     const ab = exeBuf.buffer.slice(
@@ -25,6 +26,7 @@ export function injectIcon(exePath: string, iconBuffer: Buffer): boolean {
 
     // 保存 PE 尾部追加的额外数据（VOKEX 资源嵌入在 PE 之后）
     const extraData = exe.getExtraData();
+    console.log(`[vokex:icon] 额外数据: ${extraData ? '有' : '无'}`);
 
     const res = NtExecutableResource.from(exe);
 
@@ -49,6 +51,7 @@ export function injectIcon(exePath: string, iconBuffer: Buffer): boolean {
     }
 
     const newBuf = Buffer.from(exe.generate());
+    console.log(`[vokex:icon] 生成文件大小: ${newBuf.length} bytes`);
     writeFileSync(exePath, newBuf);
     return true;
   } catch (err: any) {

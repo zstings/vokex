@@ -4,7 +4,7 @@
  * 将前端构建产物嵌入到预编译壳二进制文件中
  */
 
-import { readFile, readdir, writeFile, mkdir } from "fs/promises";
+import { readFile, readdir, writeFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { resolve, relative } from "path";
 import { createHash } from "crypto";
@@ -181,7 +181,7 @@ export async function build(options: {
   } = options;
 
   if (verbose) console.log(`[vokex] 读取壳二进制: ${shellPath}`);
-  const shellBuffer = await readFile(shellPath);
+  let shellBuffer = await readFile(shellPath);
 
   if (verbose) console.log(`[vokex] 扫描资源目录: ${inputDir}`);
   const files = await scanDir(inputDir);
@@ -215,9 +215,6 @@ export async function build(options: {
   const indexLengthBuffer = Buffer.alloc(INDEX_LENGTH_SIZE);
   indexLengthBuffer.writeUInt32LE(indexBuffer.length);
 
-  const offsetBuffer = Buffer.alloc(OFFSET_SIZE);
-  offsetBuffer.writeBigUInt64LE(BigInt(shellBuffer.length));
-
   // 合并所有文件数据
   if (verbose) console.log(`[vokex] 压缩资源...`);
   const rawData = Buffer.concat(rawChunks);
@@ -231,7 +228,40 @@ export async function build(options: {
     );
   }
 
-  // 构建资源尾部
+  // 确保输出目录存在
+  const outputDir = resolve(outputPath, "..");
+  if (!existsSync(outputDir)) {
+    await mkdir(outputDir, { recursive: true });
+  }
+
+  // 注入应用图标到 PE 资源段（仅 Windows）
+  // 必须在嵌入 VOKEX 资源之前注入，否则会破坏尾部数据
+  if (process.platform === "win32" && options.iconPath) {
+    const iconRelPath = options.iconPath.replace(/\\/g, "/");
+    const iconEntry = files.get(iconRelPath);
+    if (iconEntry) {
+      const tempIconPath = outputPath + ".tmp-icon";
+      await writeFile(tempIconPath, shellBuffer);
+      const ok = injectIcon(tempIconPath, iconEntry.data);
+      if (ok) {
+        shellBuffer = await readFile(tempIconPath);
+        if (verbose) {
+          console.log(`[vokex]    图标: 已注入 ${iconRelPath}`);
+        }
+      } else {
+        console.warn(`[vokex]    图标注入失败`);
+      }
+      // 清理临时文件
+      try { await unlink(tempIconPath); } catch {}
+    } else if (verbose) {
+      console.warn(`[vokex] 图标文件未在构建产物中找到: ${iconRelPath}`);
+    }
+  }
+
+  // 构建资源尾部（偏移量必须在图标注入之后计算）
+  const offsetBuffer = Buffer.alloc(OFFSET_SIZE);
+  offsetBuffer.writeBigUInt64LE(BigInt(shellBuffer.length));
+
   const tail = Buffer.concat([
     MAGIC,
     indexLengthBuffer,
@@ -240,28 +270,8 @@ export async function build(options: {
     offsetBuffer,
   ]);
 
-  // 确保输出目录存在
-  const outputDir = resolve(outputPath, "..");
-  if (!existsSync(outputDir)) {
-    await mkdir(outputDir, { recursive: true });
-  }
-
-  // 写入输出文件
+  // 写入输出文件（壳 + VOKEX 资源）
   await writeFile(outputPath, Buffer.concat([shellBuffer, tail]));
-
-  // 注入应用图标到 PE 资源段（仅 Windows）
-  if (process.platform === "win32" && options.iconPath) {
-    const iconRelPath = options.iconPath.replace(/\\/g, "/");
-    const iconEntry = files.get(iconRelPath);
-    if (iconEntry) {
-      const ok = injectIcon(outputPath, iconEntry.data);
-      if (ok && verbose) {
-        console.log(`[vokex]    图标: 已注入 ${iconRelPath}`);
-      }
-    } else if (verbose) {
-      console.warn(`[vokex] 图标文件未在构建产物中找到: ${iconRelPath}`);
-    }
-  }
 
   console.log(`[vokex] ✅ 构建成功!`);
   console.log(`[vokex]    文件数: ${sortedFiles.length}`);
