@@ -9,6 +9,7 @@ import { existsSync } from "fs";
 import { resolve, relative } from "path";
 import { createHash } from "crypto";
 import { createDeflate } from "zlib";
+import { injectIcon } from "./icon-embed.js";
 
 /** 魔数：VOKEX */
 const MAGIC = Buffer.from("VOKEX");
@@ -167,6 +168,8 @@ export async function build(options: {
   shellPath: string;
   /** 输出路径 */
   outputPath: string;
+  /** 应用图标路径（相对于输入目录的 PNG 文件） */
+  iconPath?: string;
   /** 是否显示详细日志 */
   verbose?: boolean;
 }): Promise<BuildResult> {
@@ -245,6 +248,20 @@ export async function build(options: {
 
   // 写入输出文件
   await writeFile(outputPath, Buffer.concat([shellBuffer, tail]));
+
+  // 注入应用图标到 PE 资源段（仅 Windows）
+  if (process.platform === "win32" && options.iconPath) {
+    const iconRelPath = options.iconPath.replace(/\\/g, "/");
+    const iconEntry = files.get(iconRelPath);
+    if (iconEntry) {
+      const ok = injectIcon(outputPath, iconEntry.data);
+      if (ok && verbose) {
+        console.log(`[vokex]    图标: 已注入 ${iconRelPath}`);
+      }
+    } else if (verbose) {
+      console.warn(`[vokex] 图标文件未在构建产物中找到: ${iconRelPath}`);
+    }
+  }
 
   console.log(`[vokex] ✅ 构建成功!`);
   console.log(`[vokex]    文件数: ${sortedFiles.length}`);

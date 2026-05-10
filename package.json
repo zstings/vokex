@@ -33,7 +33,9 @@
     "build": "tsc",
     "dev": "tsc --watch"
   },
-  "dependencies": {},
+  "dependencies": {
+    "resedit": "^3.0.2"
+  },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "typescript": "^6.0.2",

@@ -38,8 +38,8 @@ export interface VokexPluginOptions {
   name: string;
   /** 应用标识符，用于存储用户数据目录 (e.g. com.example.myapp) */
   identifier: string;
-  /** 应用图标路径 */
-  icon: string;
+  /** 应用图标路径（支持数组，其中 .ico 文件用于 exe 图标注入） */
+  icon: string | string[];
   /** 窗口配置 */
   window: {
     title: string;
@@ -223,11 +223,16 @@ export function vokexPlugin(options: VokexPluginOptions): Plugin {
     }
 
     try {
+      // 从 icon 配置中找到 .ico 文件路径
+      const icons = Array.isArray(options.icon) ? options.icon : [options.icon];
+      const icoPath = icons.find((p) => p.toLowerCase().endsWith(".ico"));
+
       const { build } = await loadEmbedModule();
       const result = await build({
         inputDir,
         shellPath,
         outputPath,
+        iconPath: icoPath,
         verbose: options.verbose,
       });
 
