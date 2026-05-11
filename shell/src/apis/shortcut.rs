@@ -44,6 +44,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
     match method {
         "shortcut.register" => register(params),
         "shortcut.unregister" => unregister(params),
+        "shortcut.clearAll" => clear_all(),
         "shortcut.isRegistered" => is_registered(params),
         "shortcut.list" => list(),
         _ => Err(format!("Unknown shortcut method: {}", method)),
@@ -62,7 +63,8 @@ fn register(params: &Value) -> Result<Value, String> {
     let accelerator = params
         .get("accelerator")
         .and_then(|v| v.as_str())
-        .ok_or("Missing 'accelerator' parameter")?;
+        .ok_or("Missing 'accelerator' parameter")?
+        .replace(' ', ""); // 容错：去除用户可能输入的空格
 
     SHORTCUT.with(|s| {
         let mut s = s.borrow_mut();
@@ -81,7 +83,7 @@ fn register(params: &Value) -> Result<Value, String> {
 
         // 解析加速器字符串为 HotKey
         // 格式：Modifiers+Key，如 "Ctrl+Shift+A"、"Alt+F4"、"CmdOrCtrl+S"
-        let hotkey = HotKey::from_str(accelerator)
+        let hotkey = HotKey::from_str(&accelerator)
             .map_err(|e| format!("Invalid accelerator '{}': {}", accelerator, e))?;
 
         let id = hotkey.id();
@@ -123,6 +125,21 @@ fn unregister(params: &Value) -> Result<Value, String> {
     })
 }
 
+/// 注销所有已注册的全局快捷键
+///
+/// 一次 IPC 调用清空全部，比前端逐个 unregister 高效。
+fn clear_all() -> Result<Value, String> {
+    SHORTCUT.with(|s| {
+        let mut s = s.borrow_mut();
+        let hotkeys: Vec<HotKey> = s.id_to_hotkey.drain().map(|(_, h)| h).collect();
+        for hotkey in hotkeys {
+            let _ = s.manager.unregister(hotkey);
+        }
+        s.id_to_accelerator.clear();
+        Ok(json!(true))
+    })
+}
+
 /// 查询加速器是否已注册
 ///
 /// 参数：
@@ -133,7 +150,8 @@ fn is_registered(params: &Value) -> Result<Value, String> {
     let accelerator = params
         .get("accelerator")
         .and_then(|v| v.as_str())
-        .ok_or("Missing 'accelerator' parameter")?;
+        .ok_or("Missing 'accelerator' parameter")?
+        .replace(' ', "");
 
     SHORTCUT.with(|s| {
         let s = s.borrow();

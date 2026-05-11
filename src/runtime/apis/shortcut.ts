@@ -105,10 +105,7 @@ export const shortcut: ShortcutAPI = {
 
   async unregisterAll(): Promise<void> {
     handlerMap.clear();
-    const list: HotKeyInfo[] = await vokexCall("shortcut.list", {});
-    await Promise.all(
-      list.map((item) => vokexCall("shortcut.unregister", { id: item.id }))
-    );
+    await vokexCall("shortcut.clearAll", {});
   },
 
   isRegistered(accelerator: string): Promise<boolean> {
