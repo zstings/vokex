@@ -119,7 +119,7 @@ export { storage } from './apis/storage';
 export { fs } from './apis/fs';
 export { shell } from './apis/shell';
 export { process } from './apis/process';
-export { http } from './apis/http';
+export { http, VokexResponse, VokexHeaders, type RequestOptions } from './apis/http';
 export { clipboard } from './apis/clipboard';
 export { dialog } from './apis/dialog';
 export { notification } from './apis/notification';
