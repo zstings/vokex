@@ -236,6 +236,7 @@ fn dispatch(method: &str, params: &serde_json::Value) -> Result<serde_json::Valu
             "notification" => crate::apis::notification::handle(method, params),
             "computer" => crate::apis::computer::handle(method, params),
             "tray" => crate::apis::tray::handle(method, params),
+            "shortcut" => crate::apis::shortcut::handle(method, params),
             _ => Err(format!("Unknown method: {}", method)),
         }
     } else {

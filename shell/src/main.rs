@@ -410,9 +410,18 @@ fn main() {
     //     _ = 事件循环目标（EventLoopWindowTarget），这里不需要用，用 _ 忽略
     //     control_flow = 控制事件循环行为的引用（Wait=继续，Exit=退出）
     event_loop.run(move |event, target, control_flow| {
+        // 轮询全局快捷键事件（非阻塞，必须在 ControlFlow 设置之前）
+        crate::apis::shortcut::poll_events();
+
         // 设置默认行为：没有事件时休眠等待（不占 CPU）
-        // 如果不设置，默认也是 Wait，但显式写出来更清晰
-        *control_flow = ControlFlow::Wait;
+        // 当有已注册的快捷键时，使用 WaitUntil 定期唤醒以轮询热键事件
+        if crate::apis::shortcut::has_hotkeys() {
+            *control_flow = ControlFlow::WaitUntil(
+                std::time::Instant::now() + std::time::Duration::from_millis(50)
+            );
+        } else {
+            *control_flow = ControlFlow::Wait;
+        }
 
         // match = Rust 的模式匹配，类似 switch-case，但更强大
         match event {

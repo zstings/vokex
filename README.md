@@ -14,7 +14,7 @@
 - **Vite 原生集成**：Vite 插件自动接管开发和构建流程
 - **单文件输出**：前端资源 zlib 压缩后嵌入到可执行文件尾部
 - **双模式运行**：开发时加载 localhost，生产时从自身尾部读取资源
-- **丰富的 API**：14 个模块，112 个公开方法
+- **丰富的 API**：15 个模块，117 个公开方法
 - **TypeScript 优先**：完整的类型支持
 - **安全沙箱**：远端页面默认禁用危险 API，支持白名单配置
 - **远程窗口**：支持加载远端 URL 创建子窗口
@@ -58,7 +58,7 @@ export default defineConfig({
 ### 3. 使用 API
 
 ```typescript
-import { app, fs, browserWindow, menu, dialog } from "vokex.app";
+import { app, fs, browserWindow, menu, dialog, shortcut } from "vokex.app";
 
 // 应用就绪后执行
 app.on("ready", async () => {
@@ -404,6 +404,42 @@ const myTray = await tray.create({
 myTray.on("click", () => {
   // 托盘左键点击
 });
+```
+
+### shortcut - 全局快捷键
+
+```typescript
+import { shortcut } from "vokex.app";
+```
+
+| 方法 | 说明 |
+|---|---|
+| `register(accelerator, handler)` | 注册全局快捷键，返回注销函数 |
+| `registerAll(bindings)` | 批量注册，返回统一注销函数 |
+| `unregisterAll()` | 注销所有已注册的快捷键 |
+| `isRegistered(accelerator)` | 查询指定加速器是否已注册 |
+| `list()` | 列出所有已注册的快捷键 |
+
+**Accelerator 格式：** 修饰键 + 按键，支持 `Ctrl` `Shift` `Alt` `Super`（Win/Cmd），按键支持 `A-Z` `F1-F24` `Space` `Enter` `Escape` `0-9` 等。跨平台使用 `CmdOrCtrl` 前缀。
+
+**示例：**
+```typescript
+// 注册单个快捷键（回调模式）
+const unbind = await shortcut.register("Ctrl+Shift+S", (ev) => {
+  console.log("保存:", ev.accelerator);
+});
+
+// 批量注册
+const unbindAll = await shortcut.registerAll({
+  "Ctrl+N": () => createNew(),
+  "Ctrl+W": () => closeTab(),
+  "CmdOrCtrl+P": () => openPalette(),  // macOS 用 Cmd，其他用 Ctrl
+});
+
+// 注销
+await unbind();       // 注销单个
+await unbindAll();    // 注销这一批
+await shortcut.unregisterAll();  // 注销全部
 ```
 
 ### clipboard - 剪贴板

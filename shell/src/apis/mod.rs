@@ -11,3 +11,4 @@ pub mod notification;
 pub mod computer;
 pub mod menu;
 pub mod tray;
+pub mod shortcut;
