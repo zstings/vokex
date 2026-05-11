@@ -416,11 +416,11 @@ import { shortcut } from "vokex.app";
 |---|---|
 | `register(accelerator, handler)` | 注册全局快捷键，返回注销函数 |
 | `registerAll(bindings)` | 批量注册，返回统一注销函数 |
-| `unregisterAll()` | 注销所有已注册的快捷键 |
+| `unregisterAll()` | 注销所有已注册的快捷键（单次 IPC） |
 | `isRegistered(accelerator)` | 查询指定加速器是否已注册 |
 | `list()` | 列出所有已注册的快捷键 |
 
-**Accelerator 格式：** 修饰键 + 按键，支持 `Ctrl` `Shift` `Alt` `Super`（Win/Cmd），按键支持 `A-Z` `F1-F24` `Space` `Enter` `Escape` `0-9` 等。跨平台使用 `CmdOrCtrl` 前缀。
+**Accelerator 格式：** 修饰键 + 按键，支持 `Ctrl` `Shift` `Alt` `Super`（Win/Cmd），按键支持 `A-Z` `F1-F24` `Space` `Enter` `Escape` `0-9` 等。跨平台使用 `CmdOrCtrl` 前缀。空格会被自动忽略，`"Ctrl + S"` 等价于 `"Ctrl+S"`。
 
 **示例：**
 ```typescript
