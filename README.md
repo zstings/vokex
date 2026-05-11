@@ -285,13 +285,60 @@ import { http } from "vokex.app";
 |---|---|
 | `request(url, options?)` | 通用请求 |
 | `get(url, options?)` | GET 请求 |
-| `post(url, data?, options?)` | POST 请求 |
-| `put(url, data?, options?)` | PUT 请求 |
+| `post(url, body?, options?)` | POST 请求 |
+| `put(url, body?, options?)` | PUT 请求 |
 | `delete(url, options?)` | DELETE 请求 |
 
-**RequestOptions：** `method` `headers` `body` `timeout`
+**RequestOptions：** `method` `headers` `body`（支持 string / 纯对象 / FormData） `timeout`
 
-**HttpResponse：** `statusCode` `statusText` `headers` `body` `ok`
+**VokexResponse：** 模拟浏览器 `fetch` 的 Response 对象
+
+| 属性/方法 | 说明 |
+|---|---|
+| `status` | 状态码 |
+| `statusText` | 状态文本 |
+| `headers` | `VokexHeaders` 实例，不区分大小写访问 |
+| `ok` | 是否成功（2xx） |
+| `bodyUsed` | body 是否已被消费 |
+| `text()` | 以文本读取响应体 |
+| `json()` | 以 JSON 读取响应体 |
+| `clone()` | 克隆响应（允许重复读取） |
+
+**VokexHeaders：** 不区分大小写的响应头包装
+
+| 方法 | 说明 |
+|---|---|
+| `get(name)` | 获取指定 header 值 |
+| `has(name)` | 检查是否存在 |
+| `forEach(cb)` | 遍历所有 header |
+| `entries()` / `keys()` / `values()` | 迭代器 |
+| `toObject()` | 转为普通对象 |
+
+**Body 自动处理：**
+
+| body 类型 | 处理 | Content-Type |
+|---|---|---|
+| `string` / `undefined` | 原样传递 | 不自动添加 |
+| 纯对象 `{}` | 自动 JSON.stringify | `application/json` |
+| `FormData` | 自动转 URL-encoded | `application/x-www-form-urlencoded` |
+
+```typescript
+// GET 请求
+const res = await http.get("https://api.example.com/data");
+const data = await res.json();
+
+// POST — 直接传入对象，自动序列化 + 设置 Content-Type
+const res = await http.post("https://api.example.com/submit", {
+  title: "hello",
+  body: "world",
+});
+
+// 手动设置 headers（大小写不敏感）
+const res = await http.get("https://api.example.com/data", {
+  headers: { "Authorization": "Bearer token" },
+});
+res.headers.get("content-type"); // 不区分大小写
+```
 
 ### dialog - 对话框
 

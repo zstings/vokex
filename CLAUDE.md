@@ -43,8 +43,10 @@ shell/                  # Rust 原生壳
 ├── src/ipc.rs          # IPC 协议：postMessage ↔ 事件循环，同步/异步分发
 ├── src/app_config.rs   # 配置加载（dev: 读 vokex-config.json；prod: 从嵌入资源读）
 ├── src/window_manager.rs  # 多窗口管理
-├── src/apis/           # API 实现（app.rs, fs.rs, http.rs, browserWindow.rs 等）
-└── Cargo.toml          # 依赖：wry 0.55, tao 0.34
+├── src/security/       # 安全模块（URL 解析、API 权限检查、危险 API 判定）
+├── src/utils.rs        # 工具函数（命令行参数解析等）
+├── src/apis/           # API 实现（app.rs, fs.rs, http.rs, browser_window.rs 等）
+└── Cargo.toml          # 依赖：wry 0.55, tao 0.34, minreq 2
 
 prebuilt/               # 预编译壳二进制（随 npm 包发布）
 ├── win32-x64.exe       # 生产壳（release 编译）
@@ -86,3 +88,20 @@ IPC 层区分同步和异步 API（`ipc.rs` 中的 `is_async_api` 函数）：
 - **异步**（线程池执行）：文件 I/O、HTTP 请求、Shell 命令、进程信息查询
 
 避免阻塞主线程导致窗口卡顿。
+
+## HTTP 模块设计
+
+HTTP 模块是前后端协作最复杂的 API 之一，涉及 body 智能处理和类 fetch 响应封装。
+
+**TS 层（http.ts）：**
+- `resolveBody()` — 发送前自动处理 body：纯对象 → JSON.stringify + 自动 Content-Type；FormData → URL-encoded；string/undefined → 原样
+- `cleanHeaders()` — 移除空 key/value 的请求头
+- `VokexHeaders` — 不区分大小写的响应头包装（内部 key 统一小写）
+- `VokexResponse` — 模拟浏览器 fetch Response，提供 `status`/`headers`/`ok`/`text()`/`json()`/`clone()`
+- 所有方法（get/post/put/delete/request）共用 `doRequest()` 统一入口
+
+**Rust 层（http.rs）：**
+- 使用 `minreq` 发送请求，headers 为 `HashMap<String, String>`（key 自动小写）
+- 返回 JSON 包含 `statusCode`/`statusText`/`headers`/`body`/`ok` 五个字段
+- `status_text()` 函数根据状态码映射标准 HTTP 状态文本
+- 仅网络连接失败返回 `Err`，服务器有响应（含 500）都返回 `Ok`
