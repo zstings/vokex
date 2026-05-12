@@ -29,10 +29,10 @@
 
 | 模块 | API | 风险说明 |
 |------|-----|----------|
-| **fs** | `readFile`, `readFileBinary` | 读取任意文件 |
-| **fs** | `writeFile`, `appendFile` | 写入任意文件 |
-| **fs** | `deleteFile`, `createDir`, `removeDir` | 删除/创建目录 |
-| **fs** | `copyFile`, `moveFile` | 复制/移动文件 |
+| **fs** | `readFile` | 读取任意文件 |
+| **fs** | `writeFile` | 写入/追加任意文件 |
+| **fs** | `rm`, `mkdir` | 删除/创建目录 |
+| **fs** | `copyFile`, `rename` | 复制/移动文件 |
 | **shell** | `execCommand`, `openPath`, `trashItem` | 执行命令/打开路径 |
 | **process** | `kill` | 终止进程 |
 | **dialog** | `showSaveDialog` | 保存文件 |
@@ -129,7 +129,7 @@
 | 危险 | `shell.execCommand` | `Permission denied` | ✅ |
 | 危险 | `process.kill` | `Permission denied` | ✅ |
 | 危险 | `dialog.showSaveDialog` | `Permission denied` | ✅ |
-| 危险 | `fs.moveFile` | `Permission denied` | ✅ |
+| 危险 | `fs.rename` | `Permission denied` | ✅ |
 | 安全 | `app.getName` | 返回应用名称 | ✅ |
 | 安全 | `computer.getCpuInfo` | 返回 CPU 信息 | ✅ |
 

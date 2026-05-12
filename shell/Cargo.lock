@@ -3281,6 +3281,7 @@ name = "vokex-shell"
 version = "0.1.5"
 dependencies = [
  "arboard",
+ "base64",
  "dirs 5.0.1",
  "flate2",
  "fs2",

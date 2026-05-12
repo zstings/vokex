@@ -15,7 +15,7 @@ document.getElementById("btn-fs-demo")?.addEventListener("click", async () => {
     const dirExists = await fs.exists(testDir);
     if (!dirExists) {
       log(`2. 创建目录: ${testDir}`);
-      await fs.createDir(testDir);
+      await fs.mkdir(testDir);
     } else {
       log(`2. 目录已存在: ${testDir}`);
     }
@@ -25,14 +25,14 @@ document.getElementById("btn-fs-demo")?.addEventListener("click", async () => {
     await fs.writeFile(testFile, content);
 
     log(`4. 读取文件内容:`);
-    const readContent = await fs.readFile(testFile);
+    const readContent = await fs.readFile(testFile, { encoding: 'utf8' });
     log(`---\n${readContent}\n---`);
 
     log(`5. 复制文件到: ${copyFile}`);
     await fs.copyFile(testFile, copyFile);
 
     log(`6. 读取目录内容: ${testDir}`);
-    const entries = await fs.readDir(testDir);
+    const entries = await fs.readdir(testDir, { withFileTypes: true }) as import("vokex.app").Dirent[];
     log(`目录包含 ${entries.length} 个条目:`);
     entries.forEach(entry => {
       log(`  ${entry.isDir ? "📁" : "📄"} ${entry.name}`);
@@ -43,6 +43,7 @@ document.getElementById("btn-fs-demo")?.addEventListener("click", async () => {
     log(`  是否文件: ${stat.isFile}`);
     log(`  是否目录: ${stat.isDir}`);
     log(`  文件大小: ${stat.size} 字节`);
+    log(`  修改时间: ${new Date(stat.mtimeMs).toLocaleString()}`);
 
     log("\n✅ 演示完成！所有操作成功");
     log(`   测试文件位置: ${testFile}`);
@@ -58,7 +59,7 @@ document.getElementById("btn-fs-read")?.addEventListener("click", async () => {
 
   try {
     const appPath = await app.getAppPath();
-    const content = await fs.readFile(`${appPath}\\test_demo\\test.txt`);
+    const content = await fs.readFile(`${appPath}\\test_demo\\test.txt`, { encoding: 'utf8' });
     log(`文件内容 (前 300 字符):\n---\n${content.slice(0, 300)}...\n---`);
     log(`文件总长度: ${content.length} 字符`);
   } catch (error: any) {
@@ -96,7 +97,7 @@ document.getElementById("btn-fs-readdir")?.addEventListener("click", async () =>
 
   try {
     const appPath = await app.getAppPath();
-    const entries = await fs.readDir(appPath);
+    const entries = await fs.readdir(appPath, { withFileTypes: true }) as import("vokex.app").Dirent[];
     entries.forEach(entry => {
       const icon = entry.isDir ? "📁" : "📄";
       log(`  ${icon} ${entry.name}`);
@@ -118,7 +119,9 @@ document.getElementById("btn-fs-stat")?.addEventListener("click", async () => {
     log(`  isFile: ${stat.isFile}`);
     log(`  isDir: ${stat.isDir}`);
     log(`  size: ${stat.size} bytes`);
-    log(`  modified: ${stat.modified} seconds ago`);
+    log(`  mtimeMs: ${new Date(stat.mtimeMs).toLocaleString()}`);
+    log(`  atimeMs: ${new Date(stat.atimeMs).toLocaleString()}`);
+    log(`  birthtimeMs: ${new Date(stat.birthtimeMs).toLocaleString()}`);
   } catch (error: any) {
     log(`❌ 错误: ${error.message}`);
   }
@@ -156,7 +159,7 @@ document.getElementById("btn-fs-delete")?.addEventListener("click", async () => 
     log(`删除前文件存在: ${existsBefore}`);
 
     if (existsBefore) {
-      await fs.deleteFile(fileName);
+      await fs.rm(fileName);
       log(`✅ 已删除文件: ${fileName}`);
 
       const existsAfter = await fs.exists(fileName);
@@ -181,7 +184,7 @@ document.getElementById("btn-fs-rmdir")?.addEventListener("click", async () => {
     log(`删除前目录存在: ${existsBefore}`);
 
     if (existsBefore) {
-      await fs.removeDir(dirName);
+      await fs.rm(dirName, { recursive: true });
       log(`✅ 已删除目录: ${dirName} (递归删除所有内容)`);
 
       const existsAfter = await fs.exists(dirName);
@@ -201,9 +204,10 @@ document.getElementById("btn-fs-read-binary")?.addEventListener("click", async (
 
   try {
     const appPath = await app.getAppPath();
-    const data = await fs.readFileBinary(appPath + "/test_demo/test.txt");
-    const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-    log(`读取成功，字节长度: ${bytes.length}`);
+    // 无 encoding 时直接返回 Uint8Array，无需手动转换
+    const bytes = await fs.readFile(appPath + "/test_demo/test.txt");
+    log(`读取成功，类型: ${bytes instanceof Uint8Array ? 'Uint8Array' : typeof bytes}`);
+    log(`字节长度: ${bytes.length}`);
     log(`前 10 字节: [${Array.from(bytes.slice(0, 10)).join(', ')}]`);
   } catch (error: any) {
     log(`❌ 错误: ${error.message}`);
@@ -229,14 +233,14 @@ document.getElementById("btn-fs-append")?.addEventListener("click", async () => 
     const statBefore = await fs.stat(fileName);
     log(`追加前大小: ${statBefore.size} 字节`);
 
-    await fs.appendFile(fileName, appendContent);
+    await fs.writeFile(fileName, appendContent, { flag: 'a' });
     log(`✅ 已追加内容到: ${fileName}`);
 
     const statAfter = await fs.stat(fileName);
     log(`追加后大小: ${statAfter.size} 字节`);
     log(`增加了 ${statAfter.size - statBefore.size} 字节`);
 
-    const fullContent = await fs.readFile(fileName);
+    const fullContent = await fs.readFile(fileName, { encoding: 'utf8' });
     log(`\n完整内容:\n---\n${fullContent}\n---`);
   } catch (error: any) {
     log(`❌ 错误: ${error.message}`);
@@ -256,14 +260,14 @@ document.getElementById("btn-fs-move")?.addEventListener("click", async () => {
     if (!srcExists) {
       log(`⚠️ 源文件不存在: ${src}`);
       log("先创建源文件...");
-      await fs.createDir("test_demo");
+      await fs.mkdir("test_demo", { recursive: true });
       await fs.writeFile(src, "这是要被重命名的文件\n");
     }
 
     const destExistsBefore = await fs.exists(dest);
     log(`目标文件已存在: ${destExistsBefore}`);
 
-    await fs.moveFile(src, dest);
+    await fs.rename(src, dest);
     log(`✅ 已移动/重命名: ${src} -> ${dest}`);
 
     const srcExistsAfter = await fs.exists(src);
@@ -272,7 +276,7 @@ document.getElementById("btn-fs-move")?.addEventListener("click", async () => {
     log(`目标文件现在存在: ${destExistsAfter}`);
 
     if (destExistsAfter) {
-      const content = await fs.readFile(dest);
+      const content = await fs.readFile(dest, { encoding: 'utf8' });
       log(`\n目标文件内容:\n---\n${content}\n---`);
     }
   } catch (error: any) {
@@ -291,11 +295,11 @@ document.getElementById("btn-fs-glob")?.addEventListener("click", async () => {
     const dirExists = await fs.exists(testDir);
     if (!dirExists) {
       log(`⚠️ 测试目录不存在，先创建...`);
-      await fs.createDir(testDir);
+      await fs.mkdir(testDir, { recursive: true });
       for (let i = 1; i <= 3; i++) {
         await fs.writeFile(`${testDir}\\file${i}.txt`, `内容 ${i}`);
       }
-      await fs.createDir(`${testDir}\\subdir`);
+      await fs.mkdir(`${testDir}\\subdir`);
       await fs.writeFile(`${testDir}\\subdir\\nested.js`, `nested`);
       await fs.writeFile(`${testDir}\\subdir\\data.json`, `{"test": true}`);
       await fs.writeFile(`${testDir}\\.hidden.txt`, `隐藏文件`);

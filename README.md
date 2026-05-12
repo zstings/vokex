@@ -250,18 +250,15 @@ import { fs } from "vokex.app";
 
 | 方法 | 说明 |
 |---|---|
-| `readFile(path)` | 读取文件为文本 |
-| `readFileBinary(path)` | 读取文件为 Base64 |
-| `writeFile(path, data)` | 写入文件 |
-| `appendFile(path, data)` | 追加内容 |
-| `deleteFile(path)` | 删除文件 |
-| `readDir(path)` | 列出目录内容，返回 `DirEntry[]` |
-| `createDir(path)` | 创建目录 |
-| `removeDir(path)` | 删除目录 |
-| `stat(path)` | 获取文件信息 |
+| `readFile(path, options?)` | 读取文件，无 encoding 返回 `Uint8Array`，支持 `encoding: 'utf8' \| 'base64' \| 'hex'` |
+| `writeFile(path, data, options?)` | 写入文件，data 支持 `string \| Uint8Array`，支持 `flag: 'w' \| 'a' \| 'wx'` |
+| `rm(path, options?)` | 删除文件或目录，支持 `{ recursive, force }` |
+| `readdir(path, options?)` | 列出目录内容，支持 `{ withFileTypes }` |
+| `mkdir(path, options?)` | 创建目录，支持 `{ recursive }` |
+| `stat(path)` | 获取文件信息（含 `atimeMs`, `mtimeMs`, `birthtimeMs`, `mode`） |
 | `exists(path)` | 检查文件是否存在 |
 | `copyFile(src, dest)` | 复制文件 |
-| `moveFile(src, dest)` | 移动 / 重命名文件 |
+| `rename(oldPath, newPath)` | 重命名/移动文件 |
 | `glob(options)` | glob 模式搜索文件 |
 
 **GlobOptions：**

@@ -59,10 +59,10 @@ pub fn handle_message(window_id: u32, request: wry::http::Request<String>) {
 fn is_async_api(method: &str) -> bool {
     matches!(
         method,
-        "fs.readFile" | "fs.readFileBinary" | "fs.writeFile" |
-        "fs.appendFile" | "fs.deleteFile" | "fs.readDir" |
-        "fs.createDir" | "fs.removeDir" | "fs.stat" |
-        "fs.exists" | "fs.copyFile" | "fs.moveFile" |
+        "fs.readFile" | "fs.writeFile" | "fs.rm" |
+        "fs.readdir" | "fs.mkdir" | "fs.stat" |
+        "fs.exists" | "fs.copyFile" | "fs.rename" |
+        "fs.glob" |
         "http.request" | "http.get" | "http.post" |
         "http.put" | "http.delete" |
         "shell.exec" | "shell.spawn" | "shell.kill" |
@@ -224,7 +224,7 @@ fn dispatch(method: &str, params: &serde_json::Value, window_id: u32) -> Result<
     if let Some(module) = method.split('.').next() {
         match module {
             "app" => crate::apis::app::handle(method, params),
-            "fs" => crate::apis::fs::handle(method, params),
+            "fs" => crate::apis::fs::handle(method, params, window_id),
             "browserWindow" => crate::apis::browser_window::handle(method, params),
             "storage" => crate::apis::storage::handle(method, params),
             "shell" => crate::apis::shell::handle(method, params, window_id),

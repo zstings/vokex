@@ -58,7 +58,7 @@ document.getElementById("btn-win-create-remote")?.addEventListener("click", asyn
     window.__VOKEX__.call('dialog.showSaveDialog', {defaultPath: 'test.txt'});
 
     // 6. 移动/复制文件
-    window.__VOKEX__.call('fs.moveFile', {src: 'a.txt', dest: 'b.txt'});
+    window.__VOKEX__.call('fs.rename', {oldPath: 'a.txt', newPath: 'b.txt'});
    * 安全api调用测试
    * // 1. 获取应用信息
     window.__VOKEX__.call('app.getName');
