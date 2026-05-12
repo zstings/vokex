@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::sync::{Mutex, LazyLock};
 use tao::event_loop::EventLoopProxy;
 use std::sync::Arc;
 
@@ -20,9 +21,10 @@ struct IpcResponse {
     error: Option<String>,
 }
 
-thread_local! {
-    pub static PROXY: RefCell<Option<EventLoopProxy<crate::IpcTask>>> = RefCell::new(None);
-}
+/// 全局 PROXY，供后台线程发送事件到主线程
+/// 使用 std::sync::LazyLock + Mutex 保证跨线程安全
+static GLOBAL_PROXY: LazyLock<Mutex<Option<EventLoopProxy<crate::IpcTask>>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 thread_local! {
     pub static THREAD_POOL: RefCell<Option<Arc<crate::ThreadPool>>> = RefCell::new(None);
@@ -35,18 +37,22 @@ pub fn set_thread_pool(pool: Arc<crate::ThreadPool>) {
 }
 
 pub fn set_proxy(proxy: EventLoopProxy<crate::IpcTask>) {
-    PROXY.with(|p| {
-        *p.borrow_mut() = Some(proxy);
-    });
+    *GLOBAL_PROXY.lock().unwrap() = Some(proxy);
+}
+
+/// 通过全局 proxy 发送 shell 流式事件到主线程执行
+/// 可在任意后台线程调用，事件会被投递到主线程事件循环中执行 eval
+pub fn emit_via_proxy(window_id: u32, event: String, data: serde_json::Value) {
+    if let Some(proxy) = GLOBAL_PROXY.lock().unwrap().as_ref() {
+        let _ = proxy.send_event(crate::IpcTask::ShellEmit { window_id, event, data });
+    }
 }
 
 pub fn handle_message(window_id: u32, request: wry::http::Request<String>) {
     let body = request.into_body();
-    PROXY.with(|p| {
-        if let Some(proxy) = p.borrow().as_ref() {
-            let _ = proxy.send_event(crate::IpcTask::HandleRequest { window_id, body });
-        }
-    });
+    if let Some(proxy) = GLOBAL_PROXY.lock().unwrap().as_ref() {
+        let _ = proxy.send_event(crate::IpcTask::HandleRequest { window_id, body });
+    }
 }
 
 /// 判断是否为耗时 API（需要在线程池中执行）
@@ -59,7 +65,7 @@ fn is_async_api(method: &str) -> bool {
         "fs.exists" | "fs.copyFile" | "fs.moveFile" |
         "http.request" | "http.get" | "http.post" |
         "http.put" | "http.delete" |
-        "shell.execCommand" |
+        "shell.exec" | "shell.spawn" | "shell.kill" |
         "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo"
     )
 }
@@ -113,71 +119,64 @@ pub fn process_request(window_id: u32, body: &str) {
             return;
         }
 
-        PROXY.with(|p| {
-            if let Some(proxy) = p.borrow().as_ref() {
-                let _ = proxy.send_event(crate::IpcTask::CreateWindow {
-                    requester_id: window_id,
-                    callback_id: req.id,
-                    params: req.params,
-                });
-            }
-        });
+        if let Some(proxy) = GLOBAL_PROXY.lock().unwrap().as_ref() {
+            let _ = proxy.send_event(crate::IpcTask::CreateWindow {
+                requester_id: window_id,
+                callback_id: req.id,
+                params: req.params,
+            });
+        }
         return;
     }
     // menu.setApplicationMenu 路由到事件循环（避免 IPC 消息处理中调用 SetWindowPos 导致消息泵重入）
     if req.method == "menu.setApplicationMenu" {
         let menu = req.params.get("menu").cloned().unwrap_or(serde_json::json!([]));
-        PROXY.with(|p| {
-            if let Some(proxy) = p.borrow().as_ref() {
-                let _ = proxy.send_event(crate::IpcTask::SetApplicationMenu {
-                    window_id,
-                    callback_id: req.id,
-                    menu,
-                });
-            }
-        });
+        if let Some(proxy) = GLOBAL_PROXY.lock().unwrap().as_ref() {
+            let _ = proxy.send_event(crate::IpcTask::SetApplicationMenu {
+                window_id,
+                callback_id: req.id,
+                menu,
+            });
+        }
         return;
     }
     if req.method == "menu.removeApplicationMenu" {
-        PROXY.with(|p| {
-            if let Some(proxy) = p.borrow().as_ref() {
-                let _ = proxy.send_event(crate::IpcTask::RemoveApplicationMenu {
-                    window_id,
-                    callback_id: req.id,
-                });
-            }
-        });
+        if let Some(proxy) = GLOBAL_PROXY.lock().unwrap().as_ref() {
+            let _ = proxy.send_event(crate::IpcTask::RemoveApplicationMenu {
+                window_id,
+                callback_id: req.id,
+            });
+        }
         return;
     }
     if req.method == "menu.setContextMenu" {
         let x = req.params.get("x").and_then(|v: &serde_json::Value| v.as_f64()).unwrap_or(0.0);
         let y = req.params.get("y").and_then(|v: &serde_json::Value| v.as_f64()).unwrap_or(0.0);
         let menu = req.params.get("menu").cloned().unwrap_or(serde_json::json!([]));
-        PROXY.with(|p| {
-            if let Some(proxy) = p.borrow().as_ref() {
-                let _ = proxy.send_event(crate::IpcTask::ContextMenu {
-                    window_id,
-                    callback_id: req.id,
-                    menu,
-                    x,
-                    y,
-                });
-            }
-        });
+        if let Some(proxy) = GLOBAL_PROXY.lock().unwrap().as_ref() {
+            let _ = proxy.send_event(crate::IpcTask::ContextMenu {
+                window_id,
+                callback_id: req.id,
+                menu,
+                x,
+                y,
+            });
+        }
         return;
     }
 
     if is_async_api(&req.method) {
         // 异步 API：投递到线程池执行，结果通过 proxy 回主线程
-        let proxy = PROXY.with(|p| p.borrow().as_ref().map(|p| p.clone()));
+        let proxy = GLOBAL_PROXY.lock().unwrap().clone();
         let method = req.method.clone();
         let params = req.params.clone();
+        let wid = window_id;
 
         THREAD_POOL.with(|tp| {
             if let Some(pool) = tp.borrow().as_ref() {
                 let pool = pool.clone();
                 pool.run(move || {
-                    let response = match dispatch(&method, &params) {
+                    let response = match dispatch(&method, &params, wid) {
                         Ok(result) => IpcResponse { id: req.id, result: Some(result), error: None },
                         Err(err) => IpcResponse { id: req.id, result: None, error: Some(err) },
                     };
@@ -195,7 +194,7 @@ pub fn process_request(window_id: u32, body: &str) {
         });
     } else {
         // 同步 API：直接在主线程执行
-        let response = match dispatch(&req.method, &req.params) {
+        let response = match dispatch(&req.method, &req.params, window_id) {
             Ok(result) => IpcResponse { id: req.id, result: Some(result), error: None },
             Err(err) => IpcResponse { id: req.id, result: None, error: Some(err) },
         };
@@ -220,7 +219,7 @@ pub fn resolve_async_response(window_id: u32, id: u64, result: Option<serde_json
     crate::window_manager::eval(window_id, &script);
 }
 
-fn dispatch(method: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
+fn dispatch(method: &str, params: &serde_json::Value, window_id: u32) -> Result<serde_json::Value, String> {
     // 按模块前缀分发
     if let Some(module) = method.split('.').next() {
         match module {
@@ -228,7 +227,7 @@ fn dispatch(method: &str, params: &serde_json::Value) -> Result<serde_json::Valu
             "fs" => crate::apis::fs::handle(method, params),
             "browserWindow" => crate::apis::browser_window::handle(method, params),
             "storage" => crate::apis::storage::handle(method, params),
-            "shell" => crate::apis::shell::handle(method, params),
+            "shell" => crate::apis::shell::handle(method, params, window_id),
             "process" => crate::apis::process::handle(method, params),
             "http" => crate::apis::http::handle(method, params),
             "clipboard" => crate::apis::clipboard::handle(method, params),
@@ -268,11 +267,9 @@ pub fn emit_all(event: &str, data: serde_json::Value) {
 
 /// 发送退出事件到主线程
 pub fn send_quit_event() {
-    PROXY.with(|p| {
-        if let Some(proxy) = p.borrow().as_ref() {
-            let _ = proxy.send_event(crate::IpcTask::Quit);
-        }
-    });
+    if let Some(proxy) = GLOBAL_PROXY.lock().unwrap().as_ref() {
+        let _ = proxy.send_event(crate::IpcTask::Quit);
+    }
 }
 
 /// 构建 IPC 响应脚本（供 main.rs 中的 CreateWindow 等使用）

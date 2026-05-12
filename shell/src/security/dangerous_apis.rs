@@ -19,7 +19,9 @@ const DANGEROUS_API_LIST: &[&str] = &[
     "fs.copyFile",
     "fs.moveFile",
     // Shell
-    "shell.execCommand",
+    "shell.exec",
+    "shell.spawn",
+    "shell.kill",
     "shell.openPath",
     "shell.trashItem",
     // 进程

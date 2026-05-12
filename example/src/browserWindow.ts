@@ -48,8 +48,8 @@ document.getElementById("btn-win-create-remote")?.addEventListener("click", asyn
     // 2. 写入文件
     window.__VOKEX__.call('fs.writeFile', {path: 'C:\\test.txt', content: 'hello'});
 
-    // 3. 执行命令
-    window.__VOKEX__.call('shell.execCommand', {command: 'dir'});
+    // 3. 执行命令（安全方式）
+    window.__VOKEX__.call('shell.exec', {program: 'cmd', args: ['/C', 'dir']});
 
     // 4. 终止进程
     window.__VOKEX__.call('process.kill', {pid: 1234});

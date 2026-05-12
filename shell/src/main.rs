@@ -173,6 +173,12 @@ enum IpcTask {
         window_id: u32,
         callback_id: u64,
     },
+    /// Shell 流式事件推送（从后台线程发送到主线程执行）
+    ShellEmit {
+        window_id: u32,
+        event: String,
+        data: serde_json::Value,
+    },
     MenuEvent(muda::MenuEvent),
     TrayEvent(tray_icon::TrayIconEvent),
 }
@@ -563,6 +569,11 @@ fn main() {
                 window_manager::eval(window_id, &script);
             }
             
+            // Shell 流式事件推送（在主线程执行 eval）
+            Event::UserEvent(IpcTask::ShellEmit { window_id, event, data }) => {
+                ipc::emit(window_id, &event, data);
+            }
+
             // 右键菜单点击事件（muda 处理）
             Event::UserEvent(IpcTask::MenuEvent(event)) => {
                 let id = event.id.0.to_string();
