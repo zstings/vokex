@@ -57,54 +57,12 @@ impl ProcessManager {
 
 /// 用系统默认程序打开 URL
 fn open_external(url: &str) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .spawn()
-            .map_err(|e| format!("Failed to open URL: {}", e))?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        Command::new("open")
-            .arg(url)
-            .spawn()
-            .map_err(|e| format!("Failed to open URL: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        Command::new("xdg-open")
-            .arg(url)
-            .spawn()
-            .map_err(|e| format!("Failed to open URL: {}", e))?;
-    }
-    Ok(())
+    open::that(url).map_err(|e| format!("Failed to open URL: {}", e))
 }
 
 /// 用系统默认程序打开文件/目录
 fn open_path(path: &str) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        Command::new("cmd")
-            .args(["/C", "start", "", path])
-            .spawn()
-            .map_err(|e| format!("Failed to open path: {}", e))?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        Command::new("open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| format!("Failed to open path: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        Command::new("xdg-open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| format!("Failed to open path: {}", e))?;
-    }
-    Ok(())
+    open::that(path).map_err(|e| format!("Failed to open path: {}", e))
 }
 
 /// 构建 Command 实例，应用 cwd 和 env 参数
