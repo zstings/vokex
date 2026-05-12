@@ -442,7 +442,10 @@ fn main() {
                     WindowEvent::CloseRequested => {
                         // 只有主窗口关闭才退出应用
                         if vokex_id == 1 {
+                            // 先通知前端，给前端留出处理时间（如保存子进程输出）
                             ipc::emit_all("app.before-quit", serde_json::json!({}));
+                            // 再清理所有子进程
+                            crate::apis::shell::cleanup_all();
                             *control_flow = ControlFlow::Exit;
                         } else if vokex_id != 0 {
                             // 非主窗口：drop Window 来关闭它

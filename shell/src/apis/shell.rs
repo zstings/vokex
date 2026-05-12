@@ -295,6 +295,17 @@ fn spawn_command(
     Ok(pid)
 }
 
+/// 窗口关闭时清理所有子进程
+pub fn cleanup_all() {
+    let pids: Vec<u32> = {
+        let manager = PROCESS_MANAGER.lock().unwrap();
+        manager.processes.keys().copied().collect()
+    };
+    for pid in pids {
+        let _ = kill_process(pid);
+    }
+}
+
 /// 杀死进程
 fn kill_process(pid: u32) -> Result<(), String> {
     let process = {
