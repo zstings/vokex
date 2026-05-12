@@ -2,13 +2,57 @@ use serde_json::{json, Value};
 use std::process::{Command, Stdio};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, LazyLock};
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::thread;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+// Windows API 声明（零依赖，直接调用 kernel32）
+#[cfg(target_os = "windows")]
+extern "system" {
+    fn MultiByteToWideChar(
+        code_page: u32,
+        flags: u32,
+        mb_str: *const u8,
+        mb_len: i32,
+        wide_str: *mut u16,
+        wide_len: i32,
+    ) -> i32;
+}
+
+/// 将可能包含 GBK 编码的字节流解码为 UTF-8 字符串。
+/// 优先尝试 UTF-8，失败后在 Windows 上用 MultiByteToWideChar (CP 936) 转码。
+fn decode_maybe_gbk(bytes: Vec<u8>) -> String {
+    // 1. 尝试 UTF-8
+    if let Ok(s) = String::from_utf8(bytes.clone()) {
+        return s;
+    }
+
+    // 2. Windows: 调用 MultiByteToWideChar 将 GBK 转为 UTF-16，再转 Rust String
+    #[cfg(target_os = "windows")]
+    {
+        let len = bytes.len() as i32;
+        unsafe {
+            // 第一次调用：获取所需宽字符数
+            let wide_len = MultiByteToWideChar(936, 0, bytes.as_ptr(), len, std::ptr::null_mut(), 0);
+            if wide_len > 0 {
+                let mut wide_buf = vec![0u16; wide_len as usize];
+                // 第二次调用：执行转码
+                let written = MultiByteToWideChar(936, 0, bytes.as_ptr(), len, wide_buf.as_mut_ptr(), wide_len);
+                if written > 0 {
+                    wide_buf.truncate(written as usize);
+                    return String::from_utf16_lossy(&wide_buf);
+                }
+            }
+        }
+    }
+
+    // 3. 兜底
+    String::from_utf8_lossy(&bytes).to_string()
+}
 
 /// 全局进程管理器，存储正在运行的子进程
 static PROCESS_MANAGER: LazyLock<Arc<Mutex<ProcessManager>>> = LazyLock::new(|| {
@@ -102,8 +146,8 @@ fn exec_command(program: &str, args: &[String], cwd: Option<&str>, env: Option<&
 
     Ok(json!({
         "code": output.status.code().unwrap_or(-1),
-        "stdout": String::from_utf8_lossy(&output.stdout).to_string(),
-        "stderr": String::from_utf8_lossy(&output.stderr).to_string(),
+        "stdout": decode_maybe_gbk(output.stdout),
+        "stderr": decode_maybe_gbk(output.stderr),
         "success": output.status.success()
     }))
 }
@@ -149,25 +193,30 @@ fn spawn_command(
         use std::io::Read;
         let mut reader = BufReader::new(stdout);
         let mut buf = [0u8; 4096];
-        let mut remainder = String::new();
+        let mut remainder: Vec<u8> = Vec::new();
 
         loop {
             match reader.read(&mut buf) {
-                Ok(0) => break, // EOF，流关闭
+                Ok(0) => break,
                 Ok(n) => {
-                    let chunk = String::from_utf8_lossy(&buf[..n]);
-                    let combined = format!("{}{}", remainder, chunk);
-                    let mut lines: Vec<&str> = combined.split('\n').collect();
-                    // 最后一个元素可能是不完整的行，存入 remainder
-                    remainder = lines.pop().unwrap_or("").to_string();
-                    for line in lines {
-                        let line = line.trim_end_matches('\r');
-                        if !line.is_empty() {
-                            crate::ipc::emit_via_proxy(
-                                window_id,
-                                format!("shell.stdout.{}", pid_clone),
-                                json!(line),
-                            );
+                    remainder.extend_from_slice(&buf[..n]);
+
+                    // 按最后一个 \n 分割（GBK 高字节 0x81-0xFE 不含 0x0A，可安全按字节拆分）
+                    let last_nl = remainder.iter().rposition(|&b| b == b'\n');
+                    if let Some(pos) = last_nl {
+                        let complete = remainder[..pos].to_vec();
+                        remainder = remainder[pos + 1..].to_vec();
+
+                        let decoded = decode_maybe_gbk(complete);
+                        for line in decoded.split('\n') {
+                            let line = line.trim_end_matches('\r');
+                            if !line.is_empty() {
+                                crate::ipc::emit_via_proxy(
+                                    window_id,
+                                    format!("shell.stdout.{}", pid_clone),
+                                    json!(line),
+                                );
+                            }
                         }
                     }
                 }
@@ -175,13 +224,17 @@ fn spawn_command(
             }
         }
 
-        // 处理剩余数据
+        // 处理剩余字节
         if !remainder.is_empty() {
-            crate::ipc::emit_via_proxy(
-                window_id,
-                format!("shell.stdout.{}", pid_clone),
-                json!(remainder),
-            );
+            let decoded = decode_maybe_gbk(remainder);
+            let line = decoded.trim_end_matches('\r');
+            if !line.is_empty() {
+                crate::ipc::emit_via_proxy(
+                    window_id,
+                    format!("shell.stdout.{}", pid_clone),
+                    json!(line),
+                );
+            }
         }
 
         // stdout 流已关闭，说明进程已退出，此时获取退出码
@@ -216,24 +269,29 @@ fn spawn_command(
         use std::io::Read;
         let mut reader = BufReader::new(stderr);
         let mut buf = [0u8; 4096];
-        let mut remainder = String::new();
+        let mut remainder: Vec<u8> = Vec::new();
 
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => {
-                    let chunk = String::from_utf8_lossy(&buf[..n]);
-                    let combined = format!("{}{}", remainder, chunk);
-                    let mut lines: Vec<&str> = combined.split('\n').collect();
-                    remainder = lines.pop().unwrap_or("").to_string();
-                    for line in lines {
-                        let line = line.trim_end_matches('\r');
-                        if !line.is_empty() {
-                            crate::ipc::emit_via_proxy(
-                                window_id,
-                                format!("shell.stderr.{}", pid_clone),
-                                json!(line),
-                            );
+                    remainder.extend_from_slice(&buf[..n]);
+
+                    let last_nl = remainder.iter().rposition(|&b| b == b'\n');
+                    if let Some(pos) = last_nl {
+                        let complete = remainder[..pos].to_vec();
+                        remainder = remainder[pos + 1..].to_vec();
+
+                        let decoded = decode_maybe_gbk(complete);
+                        for line in decoded.split('\n') {
+                            let line = line.trim_end_matches('\r');
+                            if !line.is_empty() {
+                                crate::ipc::emit_via_proxy(
+                                    window_id,
+                                    format!("shell.stderr.{}", pid_clone),
+                                    json!(line),
+                                );
+                            }
                         }
                     }
                 }
@@ -242,11 +300,15 @@ fn spawn_command(
         }
 
         if !remainder.is_empty() {
-            crate::ipc::emit_via_proxy(
-                window_id,
-                format!("shell.stderr.{}", pid_clone),
-                json!(remainder),
-            );
+            let decoded = decode_maybe_gbk(remainder);
+            let line = decoded.trim_end_matches('\r');
+            if !line.is_empty() {
+                crate::ipc::emit_via_proxy(
+                    window_id,
+                    format!("shell.stderr.{}", pid_clone),
+                    json!(line),
+                );
+            }
         }
     });
 
