@@ -5,36 +5,79 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vokex Demo</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
       margin: 0;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+    .sidebar-main {
+      width: 200px;
+      background: rgba(0, 0, 0, 0.2);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      overflow-y: auto;
+    }
+    .sidebar-sub {
+      width: 220px;
+      background: rgba(0, 0, 0, 0.15);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      overflow-y: auto;
+    }
+    .content {
+      flex: 1;
       padding: 20px;
-      box-sizing: border-box;
+      overflow-y: auto;
     }
-    h1 {
-      font-size: 3rem;
-      margin-bottom: 1rem;
+    .header {
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
-    p {
-      font-size: 1.2rem;
-      margin-bottom: 2rem;
+    .header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+    }
+    .header p {
+      margin: 5px 0 0 0;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+    .category-item {
+      padding: 12px 20px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all 0.2s;
+    }
+    .category-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .category-item.active {
+      background: rgba(255, 255, 255, 0.15);
+      border-left-color: #fff;
+    }
+    .subcategory-title {
+      padding: 15px 20px 10px;
+      font-size: 0.85rem;
+      opacity: 0.7;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
     .button-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      margin-bottom: 20px;
+      padding: 0 15px 15px;
     }
     button {
-      padding: 3px 6px;
+      width: 100%;
+      padding: 8px 12px;
+      margin: 4px 0;
       font-size: 12px;
       border: none;
       border-radius: 5px;
@@ -42,6 +85,7 @@
       color: white;
       cursor: pointer;
       transition: background 0.3s;
+      text-align: left;
     }
     button:hover {
       background: rgba(255, 255, 255, 0.3);
@@ -50,177 +94,323 @@
       background: rgba(0, 0, 0, 0.3);
       padding: 15px;
       border-radius: 8px;
-      max-width: 600px;
       width: 100%;
-      max-height: 300px;
+      height: calc(100vh - 120px);
       overflow-y: auto;
       font-family: monospace;
       font-size: 0.9rem;
       white-space: pre-wrap;
     }
+    .category-content {
+      display: none;
+    }
+    .category-content.active {
+      display: block;
+    }
   </style>
 </head>
 <body>
-  <h1>🎉 Vokex 应用</h1>
-  <p>这是一个使用 Vokex 构建的原生桌面应用</p>
-  <div style="display: flex;">
-    <div >
-      <div class="button-group">
-        <button id="btn-app-info">获取应用信息</button>
-        <button id="btn-app-paths">获取应用路径</button>
-        <button id="btn-system-paths">获取系统路径</button>
-        <button id="btn-locale">获取系统语言</button>
-        <button id="btn-single-instance">单实例锁测试</button>
-        <button id="btn-notification">发送通知</button>
+  <div class="container">
+    <div class="sidebar-main">
+      <div class="header">
+        <h1>🎉 Vokex</h1>
+        <p>API 测试面板</p>
       </div>
-      <div class="button-group">
-        <button id="btn-fs-demo">文件系统演示</button>
-        <button id="btn-fs-read">读取文件</button>
-        <button id="btn-fs-read-binary">读取二进制</button>
-        <button id="btn-fs-write">写入文件</button>
-        <button id="btn-fs-append">追加内容</button>
-        <button id="btn-fs-readdir">列目录</button>
-        <button id="btn-fs-stat">文件信息</button>
-        <button id="btn-fs-copy">复制文件</button>
-        <button id="btn-fs-move">移动/重命名</button>
-        <button id="btn-fs-delete">删除文件</button>
-        <button id="btn-fs-rmdir">删除目录</button>
-        <button id="btn-fs-glob">Glob 搜索</button>
+      <div id="main-categories"></div>
+    </div>
+    <div class="sidebar-sub" id="sub-categories">
+      
+      <!-- app 模块 -->
+      <div class="category-content" data-category="0">
+        <div class="subcategory-title">应用信息</div>
+        <div class="button-group">
+          <button id="btn-app-info">获取应用信息</button>
+          <button id="btn-app-paths">获取应用路径</button>
+          <button id="btn-system-paths">获取系统路径</button>
+          <button id="btn-locale">获取系统语言</button>
+          <button id="btn-single-instance">单实例锁测试</button>
+        </div>
+        <div class="subcategory-title">应用控制</div>
+        <div class="button-group">
+          <button id="btn-restart">重启应用</button>
+          <button id="btn-quit">退出应用</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-clipboard-copy">复制内容</button>
-        <button id="btn-clipboard-read">读取复制的内容</button>
-        <button id="btn-clipboard-clear">清空复制的内容</button>
+
+      <!-- notification 模块 -->
+      <div class="category-content" data-category="1">
+        <div class="subcategory-title">通知</div>
+        <div class="button-group">
+          <button id="btn-notification">发送通知</button>
+        </div>
       </div>
-      <!-- Dialog 模块 -->
-      <div class="button-group">
-        <button id="btn-dialog-msg">消息对话框</button>
-        <button id="btn-dialog-custom">自定义按钮</button>
-        <button id="btn-dialog-confirm">confirm</button>
-        <button id="btn-dialog-info">info 提示</button>
-        <button id="btn-dialog-error">error 提示</button>
-        <button id="btn-dialog-open">打开文件</button>
-        <button id="btn-dialog-open-multi">多选文件</button>
-        <button id="btn-dialog-dir">选择文件夹</button>
-        <button id="btn-dialog-save">保存文件</button>
+
+      <!-- fs 模块 -->
+      <div class="category-content" data-category="2">
+        <div class="subcategory-title">文件操作</div>
+        <div class="button-group">
+          <button id="btn-fs-demo">文件系统演示</button>
+          <button id="btn-fs-read">读取文件</button>
+          <button id="btn-fs-read-binary">读取二进制</button>
+          <button id="btn-fs-write">写入文件</button>
+          <button id="btn-fs-append">追加内容</button>
+          <button id="btn-fs-readdir">列目录</button>
+          <button id="btn-fs-stat">文件信息</button>
+          <button id="btn-fs-copy">复制文件</button>
+          <button id="btn-fs-move">移动/重命名</button>
+          <button id="btn-fs-delete">删除文件</button>
+          <button id="btn-fs-rmdir">删除目录</button>
+          <button id="btn-fs-glob">Glob 搜索</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-process-info">进程信息</button>
-        <button id="btn-process-uptime">运行时长</button>
-        <button id="btn-process-cpu">CPU 使用率</button>
-        <button id="btn-process-memory">内存信息</button>
+
+      <!-- path 模块 -->
+      <div class="category-content" data-category="3">
+        <div class="subcategory-title">路径处理</div>
+        <div class="button-group">
+          <button id="btn-path-join">路径拼接</button>
+          <button id="btn-path-resolve">解析绝对路径</button>
+          <button id="btn-path-normalize">规范化路径</button>
+          <button id="btn-path-basename">文件名 [同步]</button>
+          <button id="btn-path-dirname">目录名 [同步]</button>
+          <button id="btn-path-extname">扩展名 [同步]</button>
+          <button id="btn-path-sep">路径分隔符</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-shell-openexternal">打开 GitHub</button>
-        <button id="btn-shell-openpath">打开当前目录</button>
-        <button id="btn-shell-exec-dir">执行 dir 命令</button>
-        <button id="btn-shell-exec-echo">执行 echo 命令</button>
-        <button id="btn-shell-spawn">流式输出(ping)</button>
-        <button id="btn-shell-spawn-kill">spawn+kill 测试</button>
-        <button id="btn-shell-trash">删除测试文件</button>
+
+      <!-- clipboard 模块 -->
+      <div class="category-content" data-category="4">
+        <div class="subcategory-title">剪贴板</div>
+        <div class="button-group">
+          <button id="btn-clipboard-copy">复制内容</button>
+          <button id="btn-clipboard-read">读取复制的内容</button>
+          <button id="btn-clipboard-clear">清空复制的内容</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-computer-cpu">CPU 信息</button>
-        <button id="btn-computer-os">操作系统</button>
-        <button id="btn-computer-displays">显示器</button>
-        <button id="btn-computer-mouse">鼠标位置</button>
-        <button id="btn-computer-keyboard">键盘布局</button>
+
+      <!-- dialog 模块 -->
+      <div class="category-content" data-category="5">
+        <div class="subcategory-title">对话框</div>
+        <div class="button-group">
+          <button id="btn-dialog-msg">消息对话框</button>
+          <button id="btn-dialog-custom">自定义按钮</button>
+          <button id="btn-dialog-confirm">confirm</button>
+          <button id="btn-dialog-info">info 提示</button>
+          <button id="btn-dialog-error">error 提示</button>
+          <button id="btn-dialog-open">打开文件</button>
+          <button id="btn-dialog-open-multi">多选文件</button>
+          <button id="btn-dialog-dir">选择文件夹</button>
+          <button id="btn-dialog-save">保存文件</button>
+        </div>
       </div>
-      <!-- HTTP 模块 -->
-      <div class="button-group">
-        <button id="btn-http-get">HTTP GET</button>
-        <button id="btn-http-post">HTTP POST</button>
+
+      <!-- process 模块 -->
+      <div class="category-content" data-category="6">
+        <div class="subcategory-title">进程信息</div>
+        <div class="button-group">
+          <button id="btn-process-info">进程信息</button>
+          <button id="btn-process-uptime">运行时长</button>
+          <button id="btn-process-cpu">CPU 使用率</button>
+          <button id="btn-process-memory">内存信息</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-storage-set">设置存储</button>
-        <button id="btn-storage-get">获取存储</button>
-        <button id="btn-storage-keys">获取所有键</button>
-        <button id="btn-storage-has">检查键存在</button>
-        <button id="btn-storage-remove">删除键</button>
-        <button id="btn-storage-clear">清空存储</button>
+
+      <!-- shell 模块 -->
+      <div class="category-content" data-category="7">
+        <div class="subcategory-title">Shell 执行</div>
+        <div class="button-group">
+          <button id="btn-shell-openexternal">打开 GitHub</button>
+          <button id="btn-shell-openpath">打开当前目录</button>
+          <button id="btn-shell-exec-dir">执行 dir 命令</button>
+          <button id="btn-shell-exec-echo">执行 echo 命令</button>
+          <button id="btn-shell-spawn">流式输出(ping)</button>
+          <button id="btn-shell-spawn-kill">spawn+kill 测试</button>
+          <button id="btn-shell-trash">删除测试文件</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-win-create">创建窗口(本地)</button>
-        <button id="btn-win-create-remote">创建窗口(远程)</button>
-        <button id="btn-win-create-on">窗口间通信</button>
-        <button id="btn-win-set-min-size">设置最小尺寸</button>
-        <button id="btn-win-set-bg-color">设置背景色</button>
-        <button id="btn-win-skip-taskbar">隐藏任务栏</button>
-        <button id="btn-win-blur">失焦窗口</button>
-        <button id="btn-win-get-main">获取主窗口</button>
-        <button id="btn-win-get-all">获取所有窗口</button>
-        <button id="btn-win-get-focused">获取聚焦窗口</button>
-        <button id="btn-win-set-title">设置标题</button>
-        <button id="btn-win-get-size">获取大小/位置</button>
-        <button id="btn-win-set-size">设置大小</button>
-        <button id="btn-win-center">窗口居中</button>
-        <button id="btn-win-minimize">最小化</button>
-        <button id="btn-win-maximize">最大化</button>
-        <button id="btn-win-restore">恢复窗口</button>
-        <button id="btn-win-fullscreen">切换全屏</button>
-        <button id="btn-win-always-on-top">置顶窗口</button>
-        <button id="btn-win-set-position">设置位置</button>
-        <button id="btn-win-set-resizable">设置可调整大小</button>
-        <button id="btn-win-set-opacity">设置透明度 [Win]</button>
-        <button id="btn-win-set-progress">任务栏进度 [Win]</button>
-        <button id="btn-win-flash-taskbar">闪烁任务栏 [Win]</button>
-        <button id="btn-win-reload">重新加载</button>
-        <button id="btn-win-hide-show">隐藏/显示</button>
-        <button id="btn-win-scale-factor">缩放因子</button>
-        <button id="btn-win-inner-position">客户区位置</button>
-        <button id="btn-win-outer-size">外部大小</button>
-        <button id="btn-win-minimizable">可最小化</button>
-        <button id="btn-win-maximizable">可最大化</button>
-        <button id="btn-win-closable">可关闭</button>
-        <button id="btn-win-decorated">窗口装饰</button>
-        <button id="btn-win-always-on-bottom">置底窗口</button>
-        <button id="btn-win-attention">请求用户关注</button>
-        <button id="btn-win-content-protection">内容保护</button>
-        <button id="btn-win-cursor-icon">光标图标</button>
-        <button id="btn-win-cursor-visible">隐藏光标</button>
-        <button id="btn-win-cursor-position">移动光标</button>
-        <button id="btn-win-cursor-grab">锁定光标</button>
-        <button id="btn-win-all-workspaces">所有工作区可见</button>
+
+      <!-- computer 模块 -->
+      <div class="category-content" data-category="8">
+        <div class="subcategory-title">系统信息</div>
+        <div class="button-group">
+          <button id="btn-computer-cpu">CPU 信息</button>
+          <button id="btn-computer-os">操作系统</button>
+          <button id="btn-computer-displays">显示器</button>
+          <button id="btn-computer-mouse">鼠标位置</button>
+          <button id="btn-computer-keyboard">键盘布局</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-set-menu">设置菜单栏</button>
-        <button id="btn-remove-menu">移除菜单栏</button>
-        <button id="btn-popup">弹出右键菜单</button>
+
+      <!-- http 模块 -->
+      <div class="category-content" data-category="9">
+        <div class="subcategory-title">HTTP 请求</div>
+        <div class="button-group">
+          <button id="btn-http-get">HTTP GET</button>
+          <button id="btn-http-post">HTTP POST</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-tray-create">创建托盘</button>
-        <button id="btn-tray-set-tooltip">设置提示</button>
-        <button id="btn-tray-set-menu">设置托盘菜单</button>
-        <button id="btn-tray-destroy">销毁托盘</button>
-        <button id="btn-tray-listen">监听托盘事件</button>
+
+      <!-- storage 模块 -->
+      <div class="category-content" data-category="10">
+        <div class="subcategory-title">本地存储</div>
+        <div class="button-group">
+          <button id="btn-storage-set">设置存储</button>
+          <button id="btn-storage-get">获取存储</button>
+          <button id="btn-storage-keys">获取所有键</button>
+          <button id="btn-storage-has">检查键存在</button>
+          <button id="btn-storage-remove">删除键</button>
+          <button id="btn-storage-clear">清空存储</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-shortcut-register-1">注册 Ctrl+Shift+S</button>
-        <button id="btn-shortcut-register-2">注册 Alt+F5</button>
-        <button id="btn-shortcut-register-3">注册 Ctrl+Alt+Space</button>
-        <button id="btn-shortcut-register-all">批量注册</button>
-        <button id="btn-shortcut-unregister-1">注销 Ctrl+Shift+S</button>
-        <button id="btn-shortcut-unregister-all">注销所有</button>
-        <button id="btn-shortcut-is-registered">查询状态</button>
-        <button id="btn-shortcut-list">列出全部</button>
+
+      <!-- browserWindow 模块 -->
+      <div class="category-content" data-category="11">
+        <div class="subcategory-title">窗口创建</div>
+        <div class="button-group">
+          <button id="btn-win-create">创建窗口(本地)</button>
+          <button id="btn-win-create-remote">创建窗口(远程)</button>
+          <button id="btn-win-create-on">窗口间通信</button>
+        </div>
+        <div class="subcategory-title">窗口查询</div>
+        <div class="button-group">
+          <button id="btn-win-get-main">获取主窗口</button>
+          <button id="btn-win-get-all">获取所有窗口</button>
+          <button id="btn-win-get-focused">获取聚焦窗口</button>
+        </div>
+        <div class="subcategory-title">窗口操作</div>
+        <div class="button-group">
+          <button id="btn-win-set-title">设置标题</button>
+          <button id="btn-win-get-size">获取大小/位置</button>
+          <button id="btn-win-set-size">设置大小</button>
+          <button id="btn-win-center">窗口居中</button>
+          <button id="btn-win-minimize">最小化</button>
+          <button id="btn-win-maximize">最大化</button>
+          <button id="btn-win-restore">恢复窗口</button>
+          <button id="btn-win-fullscreen">切换全屏</button>
+          <button id="btn-win-always-on-top">置顶窗口</button>
+          <button id="btn-win-set-position">设置位置</button>
+          <button id="btn-win-set-resizable">设置可调整大小</button>
+          <button id="btn-win-reload">重新加载</button>
+          <button id="btn-win-hide-show">隐藏/显示</button>
+        </div>
+        <div class="subcategory-title">窗口高级</div>
+        <div class="button-group">
+          <button id="btn-win-set-min-size">设置最小尺寸</button>
+          <button id="btn-win-set-bg-color">设置背景色</button>
+          <button id="btn-win-skip-taskbar">隐藏任务栏</button>
+          <button id="btn-win-blur">失焦窗口</button>
+          <button id="btn-win-set-opacity">设置透明度 [Win]</button>
+          <button id="btn-win-set-progress">任务栏进度 [Win]</button>
+          <button id="btn-win-flash-taskbar">闪烁任务栏 [Win]</button>
+          <button id="btn-win-scale-factor">缩放因子</button>
+          <button id="btn-win-inner-position">客户区位置</button>
+          <button id="btn-win-outer-size">外部大小</button>
+          <button id="btn-win-minimizable">可最小化</button>
+          <button id="btn-win-maximizable">可最大化</button>
+          <button id="btn-win-closable">可关闭</button>
+          <button id="btn-win-decorated">窗口装饰</button>
+          <button id="btn-win-always-on-bottom">置底窗口</button>
+          <button id="btn-win-attention">请求用户关注</button>
+          <button id="btn-win-content-protection">内容保护</button>
+          <button id="btn-win-cursor-icon">光标图标</button>
+          <button id="btn-win-cursor-visible">隐藏光标</button>
+          <button id="btn-win-cursor-position">移动光标</button>
+          <button id="btn-win-cursor-grab">锁定光标</button>
+          <button id="btn-win-all-workspaces">所有工作区可见</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-path-join">路径拼接</button>
-        <button id="btn-path-resolve">解析绝对路径</button>
-        <button id="btn-path-normalize">规范化路径</button>
-        <button id="btn-path-basename">文件名 [同步]</button>
-        <button id="btn-path-dirname">目录名 [同步]</button>
-        <button id="btn-path-extname">扩展名 [同步]</button>
-        <button id="btn-path-sep">路径分隔符</button>
+
+      <!-- menu 模块 -->
+      <div class="category-content" data-category="12">
+        <div class="subcategory-title">菜单系统</div>
+        <div class="button-group">
+          <button id="btn-set-menu">设置菜单栏</button>
+          <button id="btn-remove-menu">移除菜单栏</button>
+          <button id="btn-popup">弹出右键菜单</button>
+        </div>
       </div>
-      <div class="button-group">
-        <button id="btn-restart">重启应用</button>
-        <button id="btn-quit">退出应用</button>
+
+      <!-- tray 模块 -->
+      <div class="category-content" data-category="13">
+        <div class="subcategory-title">托盘图标</div>
+        <div class="button-group">
+          <button id="btn-tray-create">创建托盘</button>
+          <button id="btn-tray-set-tooltip">设置提示</button>
+          <button id="btn-tray-set-menu">设置托盘菜单</button>
+          <button id="btn-tray-destroy">销毁托盘</button>
+          <button id="btn-tray-listen">监听托盘事件</button>
+        </div>
       </div>
-    </div> 
-    <div id="output">点击按钮测试 Vokex app API...</div>
+
+      <!-- shortcut 模块 -->
+      <div class="category-content" data-category="14">
+        <div class="subcategory-title">快捷键</div>
+        <div class="button-group">
+          <button id="btn-shortcut-register-1">注册 Ctrl+Shift+S</button>
+          <button id="btn-shortcut-register-2">注册 Alt+F5</button>
+          <button id="btn-shortcut-register-3">注册 Ctrl+Alt+Space</button>
+          <button id="btn-shortcut-register-all">批量注册</button>
+          <button id="btn-shortcut-unregister-1">注销 Ctrl+Shift+S</button>
+          <button id="btn-shortcut-unregister-all">注销所有</button>
+          <button id="btn-shortcut-is-registered">查询状态</button>
+          <button id="btn-shortcut-list">列出全部</button>
+        </div>
+      </div>
+
+    </div>
+    <div class="content">
+      <div id="output">点击按钮测试 Vokex app API...</div>
+    </div>
   </div>
-  <!-- <script type="module" src="./src/index.ts"></script> -->
+
+  <script>
+    const categories = [
+      'app 模块',
+      'notification 模块',
+      'fs 模块',
+      'path 模块',
+      'clipboard 模块',
+      'dialog 模块',
+      'process 模块',
+      'shell 模块',
+      'computer 模块',
+      'http 模块',
+      'storage 模块',
+      'browserWindow 模块',
+      'menu 模块',
+      'tray 模块',
+      'shortcut 模块'
+    ];
+
+    let currentCategoryIndex = 0;
+
+    function renderMainCategories() {
+      const container = document.getElementById('main-categories');
+      container.innerHTML = categories.map((cat, index) => `
+        <div class="category-item ${index === currentCategoryIndex ? 'active' : ''}" data-index="${index}">
+          ${cat}
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.category-item').forEach(item => {
+        item.addEventListener('click', () => {
+          currentCategoryIndex = parseInt(item.dataset.index);
+          renderMainCategories();
+          updateSubCategories();
+        });
+      });
+    }
+
+    function updateSubCategories() {
+      document.querySelectorAll('.category-content').forEach((el, index) => {
+        el.classList.toggle('active', index === currentCategoryIndex);
+      });
+    }
+
+    renderMainCategories();
+    updateSubCategories();
+  </script>
+
   <script type="module" src="./src/storage.ts"></script>
   <script type="module" src="./src/fs.ts"></script>
   <script type="module" src="./src/app.ts"></script>
