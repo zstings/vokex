@@ -128,4 +128,5 @@ export { menu } from './apis/menu';
 export { browserWindow } from './apis/browserWindow';
 export { tray, Tray, type TrayOptions, type TrayEventType } from './apis/tray';
 export { shortcut, type ShortcutAPI, type UnregisterFn, type HotKeyInfo, type ShortcutTriggeredEvent, type ShortcutHandler } from './apis/shortcut';
+export { path, type PathAPI } from './apis/path';
 

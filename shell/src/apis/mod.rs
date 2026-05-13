@@ -12,3 +12,4 @@ pub mod computer;
 pub mod menu;
 pub mod tray;
 pub mod shortcut;
+pub mod path;

@@ -201,6 +201,15 @@
         <button id="btn-shortcut-list">列出全部</button>
       </div>
       <div class="button-group">
+        <button id="btn-path-join">路径拼接</button>
+        <button id="btn-path-resolve">解析绝对路径</button>
+        <button id="btn-path-normalize">规范化路径</button>
+        <button id="btn-path-basename">文件名 [同步]</button>
+        <button id="btn-path-dirname">目录名 [同步]</button>
+        <button id="btn-path-extname">扩展名 [同步]</button>
+        <button id="btn-path-sep">路径分隔符</button>
+      </div>
+      <div class="button-group">
         <button id="btn-restart">重启应用</button>
         <button id="btn-quit">退出应用</button>
       </div>
@@ -222,5 +231,6 @@
   <script type="module" src="./src/browserWindow.ts"></script>
   <script type="module" src="./src/tray.ts"></script>
   <script type="module" src="./src/shortcut.ts"></script>
+  <script type="module" src="./src/path.ts"></script>
 </body>
 </html>
