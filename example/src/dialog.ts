@@ -31,6 +31,7 @@ document.querySelector('#btn-dialog-custom')?.addEventListener('click', async ()
             buttons: ['保存', '不保存', '取消'],
             icon: 'warning'
         });
+        console.log(index);
         const labels = ['保存', '不保存', '取消'];
         log(`点击了第 ${index} 个按钮: ${labels[index]}`);
     } catch (error: any) {

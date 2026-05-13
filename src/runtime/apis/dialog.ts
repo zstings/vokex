@@ -121,26 +121,29 @@ export interface DialogAPI {
 /**
  * 自动注入当前窗口 ID，确保在 window 未完全初始化时的健壮性
  */
-function withWindowId(options?: Record<string, any>): Record<string, any> {
-  const vokex = (window as any).__VOKEX__;
-  const windowId = vokex?.__windowId__ ?? 0;
-  return { ...(options || {}), windowId };
+const withWindowId = (o: any = {}) => ({ ...o, windowId: (window as any).__VOKEX__?.__windowId__ });
+
+/**
+ * 内部实现：不依赖类型重载的通用版本
+ */
+async function showMessageBoxInternal(options: any): Promise<any> {
+  return vokexCall('dialog.showMessageBox', withWindowId(options));
+}
+
+async function showOpenDialogInternal(options?: any): Promise<any> {
+  return vokexCall('dialog.showOpenDialog', withWindowId(options));
 }
 
 /**
  * 原生对话框 API
  */
 export const dialog: DialogAPI = {
-  showMessageBox: ((options: any) =>
-    vokexCall('dialog.showMessageBox', withWindowId(options))
-  ) as DialogAPI['showMessageBox'],
+  showMessageBox: showMessageBoxInternal,
 
   showErrorBox: (options: ErrorBoxOptions): Promise<void> =>
     vokexCall('dialog.showErrorBox', withWindowId(options)),
 
-  showOpenDialog: ((options?: any) =>
-    vokexCall('dialog.showOpenDialog', withWindowId(options))
-  ) as DialogAPI['showOpenDialog'],
+  showOpenDialog: showOpenDialogInternal,
 
   showSaveDialog: (options?: SaveDialogOptions): Promise<string | null> =>
     vokexCall('dialog.showSaveDialog', withWindowId(options)),

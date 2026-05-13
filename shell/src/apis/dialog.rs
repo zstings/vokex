@@ -41,7 +41,7 @@ pub fn handle(method: &str, params: &Value, _window_id: u32, raw_hwnd: Option<is
     }
 }
 
-/// 解析文件过滤器
+/// 解析文件过滤器（健壮版本）
 fn parse_filters(filter_arr: Option<&Vec<Value>>) -> Vec<(String, Vec<String>)> {
     filter_arr
         .map(|arr| {
@@ -61,6 +61,11 @@ fn parse_filters(filter_arr: Option<&Vec<Value>>) -> Vec<(String, Vec<String>)> 
         .unwrap_or_default()
 }
 
+/// 将 PathBuf 转换为 String 的辅助函数
+fn path_to_string(path: &std::path::Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
 // ─── showMessageBox ──────────────────────────────────────────────────
 
 fn handle_show_message_box(params: &Value, raw_hwnd: Option<isize>) -> Result<Value, String> {
@@ -68,9 +73,15 @@ fn handle_show_message_box(params: &Value, raw_hwnd: Option<isize>) -> Result<Va
         .get("message")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'message' parameter")?;
-    let title = params.get("title").and_then(|v| v.as_str()).unwrap_or("提示");
+    let icon_type = params.get("icon").and_then(|v| v.as_str());
+    let default_title = match icon_type {
+        Some("warning") => "警告",
+        Some("error") => "错误",
+        _ => "提示",
+    };
+    let title = params.get("title").and_then(|v| v.as_str()).unwrap_or(default_title);
 
-    let level = match params.get("icon").and_then(|v| v.as_str()) {
+    let level = match icon_type {
         Some("warning") => rfd::MessageLevel::Warning,
         Some("error") => rfd::MessageLevel::Error,
         _ => rfd::MessageLevel::Info,
@@ -119,7 +130,7 @@ fn handle_show_message_box(params: &Value, raw_hwnd: Option<isize>) -> Result<Va
             }
             _ => 0,
         };
-        Ok(json!({ "response": index }))
+        Ok(json!(index))
     } else {
         let response = match result {
             rfd::MessageDialogResult::Ok => "ok",
@@ -197,24 +208,24 @@ fn handle_show_open_dialog(params: &Value, raw_hwnd: Option<isize>) -> Result<Va
         if multiple {
             match builder.pick_folders() {
                 Some(paths) => {
-                    let result: Vec<String> = paths.iter().map(|p| p.to_string_lossy().to_string()).collect();
+                    let result: Vec<String> = paths.into_iter().map(|p| path_to_string(&p)).collect();
                     Ok(json!(result))
                 }
                 None => Ok(json!(null)),
             }
         } else {
-            Ok(json!(builder.pick_folder().map(|p| p.to_string_lossy().to_string())))
+            Ok(json!(builder.pick_folder().map(|p| path_to_string(&p))))
         }
     } else if multiple {
         match builder.pick_files() {
             Some(paths) => {
-                let result: Vec<String> = paths.iter().map(|p| p.to_string_lossy().to_string()).collect();
+                let result: Vec<String> = paths.into_iter().map(|p| path_to_string(&p)).collect();
                 Ok(json!(result))
             }
             None => Ok(json!(null)),
         }
     } else {
-        Ok(json!(builder.pick_file().map(|p| p.to_string_lossy().to_string())))
+        Ok(json!(builder.pick_file().map(|p| path_to_string(&p))))
     }
 }
 
@@ -248,5 +259,5 @@ fn handle_show_save_dialog(params: &Value, raw_hwnd: Option<isize>) -> Result<Va
         builder = builder.add_filter(name, extensions);
     }
 
-    Ok(json!(builder.save_file().map(|p| p.to_string_lossy().to_string())))
+    Ok(json!(builder.save_file().map(|p| path_to_string(&p))))
 }
