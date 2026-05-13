@@ -19,7 +19,7 @@ notify-rust = "4"
 open = "5.1"
 trash = "5.2"
 minreq = { version = "2", features = ["https"] }
-rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "common-controls-v6"] }
 arboard = { version = "3" }
 raw-window-handle = "0.6"
 muda = "0.17"

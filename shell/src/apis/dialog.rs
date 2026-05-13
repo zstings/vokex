@@ -87,26 +87,26 @@ fn handle_show_message_box(params: &Value, raw_hwnd: Option<isize>) -> Result<Va
         _ => rfd::MessageLevel::Info,
     };
 
-    // 自定义按钮优先于标准 type
-    let (buttons, is_custom) = if let Some(btn_labels) = params.get("buttons").and_then(|v| v.as_array()) {
-        let labels: Vec<String> = btn_labels
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect();
-        match labels.len() {
-            0 => (rfd::MessageButtons::Ok, false),
-            1 => (rfd::MessageButtons::OkCustom(labels[0].clone()), true),
-            2 => (rfd::MessageButtons::OkCancelCustom(labels[0].clone(), labels[1].clone()), true),
-            _ => (rfd::MessageButtons::YesNoCancelCustom(labels[0].clone(), labels[1].clone(), labels[2].clone()), true),
+    // 解析自定义按钮（优先于标准 type）
+    let buttons_vec: Option<Vec<String>> = params
+        .get("buttons")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .filter(|v: &Vec<String>| !v.is_empty());
+
+    let buttons = if let Some(ref btns) = buttons_vec {
+        match btns.len() {
+            1 => rfd::MessageButtons::OkCustom(btns[0].clone()),
+            2 => rfd::MessageButtons::OkCancelCustom(btns[0].clone(), btns[1].clone()),
+            _ => rfd::MessageButtons::YesNoCancelCustom(btns[0].clone(), btns[1].clone(), btns[2].clone()),
         }
     } else {
-        let b = match params.get("type").and_then(|v| v.as_str()) {
+        match params.get("type").and_then(|v| v.as_str()) {
             Some("okCancel") => rfd::MessageButtons::OkCancel,
             Some("yesNo") => rfd::MessageButtons::YesNo,
             Some("yesNoCancel") => rfd::MessageButtons::YesNoCancel,
             _ => rfd::MessageButtons::Ok,
-        };
-        (b, false)
+        }
     };
 
     let mut dialog = rfd::MessageDialog::new()
@@ -121,12 +121,10 @@ fn handle_show_message_box(params: &Value, raw_hwnd: Option<isize>) -> Result<Va
 
     let result = dialog.show();
 
-    if is_custom {
-        let btn_labels = params.get("buttons").and_then(|v| v.as_array()).unwrap();
-        let labels: Vec<&str> = btn_labels.iter().filter_map(|v| v.as_str()).collect();
+    if let Some(btns) = buttons_vec {
         let index = match &result {
-            rfd::MessageDialogResult::Custom(label) => {
-                labels.iter().position(|l| *l == label.as_str()).unwrap_or(0) as u32
+            rfd::MessageDialogResult::Custom(s) => {
+                btns.iter().position(|b| b == s).unwrap_or(0)
             }
             _ => 0,
         };
