@@ -121,7 +121,7 @@ export { shell } from './apis/shell';
 export { process } from './apis/process';
 export { http, VokexResponse, VokexHeaders, type RequestOptions } from './apis/http';
 export { clipboard } from './apis/clipboard';
-export { dialog } from './apis/dialog';
+export { dialog, type DialogAPI, type MessageBoxOptions, type CustomMessageBoxOptions, type MessageBoxResult, type OpenDialogOptions, type SaveDialogOptions, type ErrorBoxOptions, type FileFilter } from './apis/dialog';
 export { notification } from './apis/notification';
 export { computer } from './apis/computer';
 export { menu } from './apis/menu';

@@ -55,6 +55,29 @@ pub fn handle_message(window_id: u32, request: wry::http::Request<String>) {
     }
 }
 
+/// 在主线程提取窗口原生句柄的 isize 值，用于跨线程传递给 dialog 模块的 set_parent()
+/// isize 是 Send，可安全从主线程传递到线程池 worker
+fn extract_parent_hwnd(method: &str, window_id: u32) -> Option<isize> {
+    if !method.starts_with("dialog.") {
+        return None;
+    }
+    crate::window_manager::MANAGER.with(|m| {
+        let manager = m.borrow();
+        manager.get(window_id).and_then(|entry| {
+            use raw_window_handle::HasWindowHandle;
+            entry.window.window_handle().ok().and_then(|h| {
+                match h.as_raw() {
+                    #[cfg(target_os = "windows")]
+                    raw_window_handle::RawWindowHandle::Win32(w) => Some(w.hwnd.get() as isize),
+                    #[cfg(target_os = "linux")]
+                    raw_window_handle::RawWindowHandle::Xlib(w) => Some(w.window as isize),
+                    _ => None,
+                }
+            })
+        })
+    })
+}
+
 /// 判断是否为耗时 API（需要在线程池中执行）
 fn is_async_api(method: &str) -> bool {
     matches!(
@@ -66,7 +89,9 @@ fn is_async_api(method: &str) -> bool {
         "http.request" | "http.get" | "http.post" |
         "http.put" | "http.delete" |
         "shell.exec" | "shell.spawn" | "shell.kill" |
-        "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo"
+        "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo" |
+        "dialog.showMessageBox" | "dialog.showErrorBox" |
+        "dialog.showOpenDialog" | "dialog.showSaveDialog"
     )
 }
 
@@ -167,6 +192,8 @@ pub fn process_request(window_id: u32, body: &str) {
 
     if is_async_api(&req.method) {
         // 异步 API：投递到线程池执行，结果通过 proxy 回主线程
+        // dialog 模块需要父窗口句柄，在主线程预提取（MANAGER 是 thread_local）
+        let raw_hwnd = extract_parent_hwnd(&req.method, window_id);
         let proxy = GLOBAL_PROXY.lock().unwrap().clone();
         let method = req.method.clone();
         let params = req.params.clone();
@@ -176,7 +203,7 @@ pub fn process_request(window_id: u32, body: &str) {
             if let Some(pool) = tp.borrow().as_ref() {
                 let pool = pool.clone();
                 pool.run(move || {
-                    let response = match dispatch(&method, &params, wid) {
+                    let response = match dispatch(&method, &params, wid, raw_hwnd) {
                         Ok(result) => IpcResponse { id: req.id, result: Some(result), error: None },
                         Err(err) => IpcResponse { id: req.id, result: None, error: Some(err) },
                     };
@@ -194,7 +221,8 @@ pub fn process_request(window_id: u32, body: &str) {
         });
     } else {
         // 同步 API：直接在主线程执行
-        let response = match dispatch(&req.method, &req.params, window_id) {
+        let raw_hwnd = extract_parent_hwnd(&req.method, window_id);
+        let response = match dispatch(&req.method, &req.params, window_id, raw_hwnd) {
             Ok(result) => IpcResponse { id: req.id, result: Some(result), error: None },
             Err(err) => IpcResponse { id: req.id, result: None, error: Some(err) },
         };
@@ -219,7 +247,7 @@ pub fn resolve_async_response(window_id: u32, id: u64, result: Option<serde_json
     crate::window_manager::eval(window_id, &script);
 }
 
-fn dispatch(method: &str, params: &serde_json::Value, window_id: u32) -> Result<serde_json::Value, String> {
+fn dispatch(method: &str, params: &serde_json::Value, window_id: u32, raw_hwnd: Option<isize>) -> Result<serde_json::Value, String> {
     // 按模块前缀分发
     if let Some(module) = method.split('.').next() {
         match module {
@@ -231,7 +259,7 @@ fn dispatch(method: &str, params: &serde_json::Value, window_id: u32) -> Result<
             "process" => crate::apis::process::handle(method, params),
             "http" => crate::apis::http::handle(method, params),
             "clipboard" => crate::apis::clipboard::handle(method, params),
-            "dialog" => crate::apis::dialog::handle(method, params),
+            "dialog" => crate::apis::dialog::handle(method, params, window_id, raw_hwnd),
             "notification" => crate::apis::notification::handle(method, params),
             "computer" => crate::apis::computer::handle(method, params),
             "tray" => crate::apis::tray::handle(method, params),
