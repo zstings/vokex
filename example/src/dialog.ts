@@ -23,11 +23,12 @@ document.querySelector('#btn-dialog-msg')?.addEventListener('click', async () =>
 
 document.querySelector('#btn-dialog-custom')?.addEventListener('click', async () => {
     // rfd 的 MessageButtons 枚举最多只支持 3 个自定义按钮
+    // 使用 Windows API — 直接调用 TaskDialogIndirect 可以支持最多 6+ 个按钮，但需要写平台特定代码 后期考虑
     clear();
     log("=== 消息对话框（自定义按钮）===");
     try {
         const index = await dialog.showMessageBox({
-            title: '选择操作',
+            title: 'vokex',
             message: '请选择你要执行的操作：',
             buttons: ['保存', '不保存', '取消'],
             icon: 'warning'
