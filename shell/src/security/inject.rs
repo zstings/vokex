@@ -30,7 +30,7 @@ pub fn get_security_script() -> &'static str {
         
         var meta = document.createElement('meta');
         meta.httpEquiv = 'Content-Security-Policy';
-        meta.content = "frame-src 'self' vokex://; default-src 'self'";
+        meta.content = "frame-src 'self' vokex:*; default-src 'self'";
         var head = document.head || document.documentElement;
         if (head) {
             head.insertBefore(meta, head.firstChild);
