@@ -1,12 +1,13 @@
 use base64::Engine;
-use glob::{glob_with, MatchOptions, Pattern};
+use glob::{MatchOptions, Pattern};
 use serde_json::{json, Value};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use walkdir::WalkDir;
 
 /// 处理 fs 模块的 API 调用
-pub fn handle(method: &str, params: &Value, _window_id: u32) -> Result<Value, String> {
+pub fn handle(method: &str, params: &Value, window_id: u32) -> Result<Value, String> {
     match method {
         "fs.readFile" => read_file(params),
         "fs.writeFile" => write_file(params),
@@ -18,6 +19,7 @@ pub fn handle(method: &str, params: &Value, _window_id: u32) -> Result<Value, St
         "fs.copyFile" => copy_file(params),
         "fs.rename" => rename(params),
         "fs.glob" => glob(params),
+        "fs.globStream" => glob_stream(params, window_id),
         _ => Err(format!("Unknown fs method: {}", method)),
     }
 }
@@ -316,6 +318,49 @@ pub struct GlobOptions {
     pub dot: Option<bool>,
 }
 
+/// 检查路径是否应该被忽略（在遍历时跳过目录）
+fn should_skip_dir(path: &Path, ignore_patterns: &[String], dot: bool) -> bool {
+    // 检查是否是隐藏目录且 dot=false
+    if !dot {
+        if let Some(name) = path.file_name() {
+            if name.to_string_lossy().starts_with('.') {
+                return true;
+            }
+        }
+    }
+    // 检查是否匹配 ignore 模式
+    let path_str = path.to_string_lossy();
+    ignore_patterns.iter().any(|pattern| fast_glob::glob_match(pattern, &*path_str))
+}
+
+/// 检查路径是否匹配 glob 模式
+fn matches_glob_pattern(path: &Path, pattern: &str, cwd: &Path, dot: bool) -> bool {
+    // 获取相对于 cwd 的路径
+    let relative = path.strip_prefix(cwd).unwrap_or(path);
+    let relative_str = relative.to_string_lossy();
+
+    // 检查隐藏文件
+    if !dot {
+        if let Some(name) = path.file_name() {
+            if name.to_string_lossy().starts_with('.') {
+                return false;
+            }
+        }
+    }
+
+    // 使用 glob crate 的 Pattern 进行匹配
+    if let Ok(glob_pattern) = Pattern::new(pattern) {
+        let match_opts = MatchOptions {
+            case_sensitive: cfg!(not(windows)),
+            require_literal_separator: false,
+            require_literal_leading_dot: !dot,
+        };
+        glob_pattern.matches_with(&relative_str, match_opts)
+    } else {
+        false
+    }
+}
+
 fn glob(params: &Value) -> Result<Value, String> {
     let opts: GlobOptions =
         serde_json::from_value(params.clone()).map_err(|e| format!("Invalid glob options: {}", e))?;
@@ -323,73 +368,184 @@ fn glob(params: &Value) -> Result<Value, String> {
     let pattern_str = params
         .get("pattern")
         .and_then(|v| v.as_str())
-        .unwrap_or("*");
+        .unwrap_or("*")
+        .to_string();
 
-    let pattern = opts
+    let cwd = opts
         .cwd
-        .as_ref()
-        .map(|cwd| {
-            format!(
-                "{}/{}",
-                cwd.trim_end_matches(['/', '\\']),
-                pattern_str
-            )
-        })
-        .unwrap_or_else(|| pattern_str.to_string());
+        .as_deref()
+        .unwrap_or(".");
 
-    let match_opts = MatchOptions {
-        case_sensitive: cfg!(not(windows)),
-        require_literal_separator: false,
-        require_literal_leading_dot: !opts.dot.unwrap_or(false),
-    };
-
-    let ignore_patterns: Vec<Pattern> = opts
-        .ignore
-        .as_ref()
-        .map(|ignores| ignores.iter().filter_map(|p| Pattern::new(p).ok()).collect())
-        .unwrap_or_default();
-
+    let cwd_path = Path::new(cwd);
     let nodir = opts.nodir.unwrap_or(false);
     let absolute = opts.absolute.unwrap_or(false);
-    let cwd_path = std::env::current_dir().ok();
+    let dot = opts.dot.unwrap_or(false);
 
-    let entries =
-        glob_with(&pattern, match_opts).map_err(|e| format!("Invalid glob pattern: {}", e))?;
+    // ignore 模式列表
+    let ignore_patterns = opts.ignore.unwrap_or_default();
 
-    let mut results: Vec<String> = entries
-        .filter_map(|entry| {
-            let path = entry.ok()?;
+    let mut results: Vec<String> = Vec::new();
 
-            let path_str = path.to_string_lossy();
-            if ignore_patterns.iter().any(|p| p.matches(&path_str)) {
-                return None;
-            }
-
-            if nodir && path.is_dir() {
-                return None;
-            }
-
-            let result = if absolute {
-                path.canonicalize()
-                    .unwrap_or(path)
-                    .to_string_lossy()
-                    .to_string()
+    // 使用 walkdir 进行目录遍历，在遍历过程中跳过 ignore 目录
+    for entry in WalkDir::new(cwd_path)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            let path = e.path();
+            // 只对目录检查是否需要跳过（文件级别的过滤在后面）
+            if path.is_dir() && path != cwd_path {
+                !should_skip_dir(path, &ignore_patterns, dot)
             } else {
-                cwd_path
-                    .as_ref()
-                    .and_then(|cwd| path.strip_prefix(cwd).ok())
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path_str.to_string())
-            };
-
-            Some(result)
+                true
+            }
         })
-        .collect();
+    {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue, // 跳过无法访问的条目
+        };
+
+        let path = entry.path();
+
+        // 跳过根目录本身
+        if path == cwd_path {
+            continue;
+        }
+
+        // 检查是否匹配 glob 模式
+        if !matches_glob_pattern(path, &pattern_str, cwd_path, dot) {
+            continue;
+        }
+
+        // nodir 过滤
+        if nodir && path.is_dir() {
+            continue;
+        }
+
+        // 构建结果路径
+        let result = if absolute {
+            path.canonicalize()
+                .unwrap_or_else(|_| path.to_path_buf())
+                .to_string_lossy()
+                .to_string()
+        } else {
+            path.strip_prefix(cwd_path)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .to_string()
+        };
+
+        results.push(result);
+    }
 
     results.sort();
     results.dedup();
 
     Ok(json!(results))
+}
+
+/// 流式 glob：边遍历边通过事件返回结果
+fn glob_stream(params: &Value, window_id: u32) -> Result<Value, String> {
+    let opts: GlobOptions =
+        serde_json::from_value(params.clone()).map_err(|e| format!("Invalid glob options: {}", e))?;
+
+    let pattern_str = params
+        .get("pattern")
+        .and_then(|v| v.as_str())
+        .unwrap_or("*")
+        .to_string();
+
+    // 拥有所有权的路径，传递给线程
+    let cwd_path = std::path::PathBuf::from(opts.cwd.as_deref().unwrap_or("."));
+    let nodir = opts.nodir.unwrap_or(false);
+    let absolute = opts.absolute.unwrap_or(false);
+    let dot = opts.dot.unwrap_or(false);
+
+    // ignore 模式列表（拥有所有权，传递给线程）
+    let ignore_patterns = opts.ignore.unwrap_or_default();
+
+    // 生成唯一的 stream ID
+    let stream_id = format!("glob_{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis());
+
+    let stream_id_clone = stream_id.clone();
+
+    // 在后台线程执行遍历，通过事件返回结果
+    std::thread::spawn(move || {
+        let mut count: u64 = 0;
+
+        for entry in WalkDir::new(&cwd_path)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                let path = e.path();
+                if path.is_dir() && path != cwd_path {
+                    !should_skip_dir(path, &ignore_patterns, dot)
+                } else {
+                    true
+                }
+            })
+        {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            let path = entry.path();
+
+            if path == cwd_path {
+                continue;
+            }
+
+            if !matches_glob_pattern(path, &pattern_str, &cwd_path, dot) {
+                continue;
+            }
+
+            if nodir && path.is_dir() {
+                continue;
+            }
+
+            let result = if absolute {
+                path.canonicalize()
+                    .unwrap_or_else(|_| path.to_path_buf())
+                    .to_string_lossy()
+                    .to_string()
+            } else {
+                path.strip_prefix(&cwd_path)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string()
+            };
+
+            count += 1;
+
+            // 每找到一个就发送
+            crate::ipc::emit_via_proxy(
+                window_id,
+                format!("glob.data.{}", stream_id_clone),
+                json!({
+                    "path": result,
+                    "index": count
+                }),
+            );
+        }
+
+        // 发送完成事件
+        crate::ipc::emit_via_proxy(
+            window_id,
+            format!("glob.done.{}", stream_id_clone),
+            json!({
+                "total": count
+            }),
+        );
+    });
+
+    // 立即返回 stream ID
+    Ok(json!({
+        "streamId": stream_id
+    }))
 }
 
 // ==============================

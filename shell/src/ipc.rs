@@ -85,7 +85,7 @@ fn is_async_api(method: &str) -> bool {
         "fs.readFile" | "fs.writeFile" | "fs.rm" |
         "fs.readdir" | "fs.mkdir" | "fs.stat" |
         "fs.exists" | "fs.copyFile" | "fs.rename" |
-        "fs.glob" |
+        "fs.glob" | "fs.globStream" |
         "http.request" | "http.get" | "http.post" |
         "http.put" | "http.delete" |
         "shell.exec" | "shell.spawn" | "shell.kill" |

@@ -140,6 +140,16 @@ export interface GlobOptions {
   dot?: boolean;
 }
 
+/** 流式 Glob 回调选项 */
+export interface GlobStreamCallbacks {
+  /** 每找到一个文件时触发 */
+  onMatch: (path: string, index: number) => void;
+  /** 搜索完成时触发 */
+  onDone: (total: number) => void;
+  /** 发生错误时触发 */
+  onError?: (error: Error) => void;
+}
+
 // ==============================
 // API 接口定义（函数重载）
 // ==============================
@@ -190,6 +200,12 @@ export interface FsAPI {
 
   /** 使用 glob 模式搜索文件 */
   glob(options: GlobOptions): Promise<string[]>;
+
+  /**
+   * 流式 glob 搜索：边遍历边返回结果，适合大量文件的场景
+   * @returns 返回 streamId，可用于后续取消操作
+   */
+  globStream(options: GlobOptions, callbacks: GlobStreamCallbacks): Promise<string>;
 }
 
 // ==============================
@@ -258,4 +274,39 @@ export const fs: FsAPI = {
 
   glob: (options: GlobOptions): Promise<string[]> =>
     vokexCall("fs.glob", options),
+
+  globStream: async (options: GlobOptions, callbacks: GlobStreamCallbacks): Promise<string> => {
+    const vokex = (window as any).__VOKEX__;
+    if (!vokex?.call) {
+      console.warn(`[vokex] 此 API 仅在原生模式下可用`);
+      return "";
+    }
+
+    // 调用 Rust 层获取 streamId
+    const result = await vokexCall("fs.globStream", options);
+    const streamId = result?.streamId;
+    if (!streamId) {
+      throw new Error("Failed to create glob stream");
+    }
+
+    // 监听数据事件
+    const dataEvent = `glob.data.${streamId}`;
+    const doneEvent = `glob.done.${streamId}`;
+
+    const onData = (data: any) => {
+      callbacks.onMatch(data.path, data.index);
+    };
+
+    const onDone = (data: any) => {
+      callbacks.onDone(data.total);
+      // 清理监听器
+      vokex.off(dataEvent, onData);
+      vokex.off(doneEvent, onDone);
+    };
+
+    vokex.on(dataEvent, onData);
+    vokex.on(doneEvent, onDone);
+
+    return streamId;
+  },
 };

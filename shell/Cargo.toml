@@ -28,6 +28,8 @@ png = "0.17"
 ico = "0.5"
 sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 glob = "0.3"
+walkdir = "2"
+fast-glob = "1.0"
 global-hotkey = "0.8"
 base64 = "0.22"
 

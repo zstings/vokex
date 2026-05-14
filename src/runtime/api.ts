@@ -116,7 +116,7 @@ export interface OsInfo {
 export { app } from './apis/app';
 export { events } from './apis/events';
 export { storage } from './apis/storage';
-export { fs, type Stats, type Dirent, type ReadFileOptions, type WriteFileOptions, type RmOptions, type ReaddirOptions, type MkdirOptions, type GlobOptions } from './apis/fs';
+export { fs, type Stats, type Dirent, type ReadFileOptions, type WriteFileOptions, type RmOptions, type ReaddirOptions, type MkdirOptions, type GlobOptions, type GlobStreamCallbacks } from './apis/fs';
 export { shell } from './apis/shell';
 export { process } from './apis/process';
 export { http, VokexResponse, VokexHeaders, type RequestOptions } from './apis/http';

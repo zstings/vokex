@@ -334,3 +334,108 @@ document.getElementById("btn-fs-glob")?.addEventListener("click", async () => {
     log(`❌ 错误: ${error.message}`);
   }
 });
+
+
+
+// 假设你已经通过 window.vokex.fs 暴露了相关接口
+async function testGitScanSpeed() {
+
+  // 建议从用户目录或特定项目盘符开始，避免全盘扫描权限问题
+  const scanRoot = "F:/";
+
+  console.log(`[Test] 开始扫描: ${scanRoot}`);
+  const startTime = performance.now();
+
+  try {
+    // 修改点：只传一个对象，并将 pattern 写入其中
+    const projects = await fs.glob({
+      pattern: "**/.git", // 这里的 pattern 必须在对象内
+      cwd: scanRoot,
+      ignore: [
+        "**/node_modules/**",
+        "**/target/**",
+        "**/dist/**",
+        "**/.git/**",      // 必须加上这个，防止进入 .git 文件夹内部扫描数千个 object 文件
+        "**/build/**",
+        "**/.cache/**",    // 很多工具（如 Rust, PNPM）的缓存
+        "**/AppData/**",   // 如果你扫描的是用户目录，这里面有海量小文件
+        "**/Library/**",   // macOS 环境同理
+        "**/System32/**",  // 防止扫描到系统盘核心目录
+        "**/.idea/**",     // JetBrains 配置文件
+        "**/.vscode/**"    // VS Code 配置文件
+      ],
+      dot: true // .git 是隐藏目录，建议开启 dot 选项
+    });
+
+    const duration = performance.now() - startTime;
+
+    console.log("---------------------------------------");
+    console.log(`扫描完成！耗时: ${(duration / 1000).toFixed(2)} 秒`);
+    console.log(`找到项目数: ${projects.length}`);
+
+    // 映射出项目根目录
+    const projectPaths = projects.map(p => p.replace(/[\\/].git$/, ''));
+    console.log("项目路径列表:", projectPaths);
+
+  } catch (err) {
+    // 如果还是报错，说明 Rust 后端的 GlobOptions 结构体定义非常严格
+    console.error("扫描失败，请检查参数格式:", err);
+  }
+}
+
+// 流式 glob 测试 - 边扫描边返回结果
+async function testGitScanStream() {
+  const scanRoot = "F:/";
+
+  console.log(`[Stream] 开始流式扫描: ${scanRoot}`);
+  const startTime = performance.now();
+  let matchCount = 0;
+
+  try {
+    const streamId = await fs.globStream(
+      {
+        pattern: "**/.git",
+        cwd: scanRoot,
+        ignore: [
+          "**/node_modules/**",
+          "**/target/**",
+          "**/dist/**",
+          "**/.git/**",      // 必须加上这个，防止进入 .git 文件夹内部扫描数千个 object 文件
+          "**/build/**",
+          "**/.cache/**",    // 很多工具（如 Rust, PNPM）的缓存
+          "**/AppData/**",   // 如果你扫描的是用户目录，这里面有海量小文件
+          "**/Library/**",   // macOS 环境同理
+          "**/System32/**",  // 防止扫描到系统盘核心目录
+          "**/.idea/**",     // JetBrains 配置文件
+          "**/.vscode/**"    // VS Code 配置文件
+        ],
+        dot: true
+      },
+      {
+        onMatch: (path, index) => {
+          matchCount++;
+          // 实时显示找到的项目
+          const projectPath = path.replace(/[\\/].git$/, '');
+          console.log(`[${index}] ${projectPath}`);
+        },
+        onDone: (total) => {
+          const duration = performance.now() - startTime;
+          console.log("---------------------------------------");
+          console.log(`流式扫描完成！耗时: ${(duration / 1000).toFixed(2)} 秒`);
+          console.log(`找到项目数: ${total}`);
+        },
+        onError: (error) => {
+          console.error("扫描错误:", error);
+        }
+      }
+    );
+
+    console.log(`Stream ID: ${streamId}`);
+
+  } catch (err) {
+    console.error("扫描失败:", err);
+  }
+}
+
+window.testGitScanSpeed = testGitScanSpeed;
+window.testGitScanStream = testGitScanStream;
