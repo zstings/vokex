@@ -327,6 +327,17 @@ fn show_context_menu_macos(window_id: u32, menu_json: &serde_json::Value, x: f64
     })
 }
 
+#[cfg(target_os = "windows")]
+fn set_aumid() {
+    use windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+    let identifier = app_config::get_config().identifier.clone();
+    let aumid = format!("Vokex.{}.Shell", identifier);
+    let id = aumid.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+    unsafe {
+        SetCurrentProcessExplicitAppUserModelID(id.as_ptr());
+    }
+}
+
 // 程序入口函数
 fn main() {
     // 记录进程运行的起始时间
@@ -341,6 +352,10 @@ fn main() {
     // 初始化配置
     app_config::init_app_config();
     let app_config = app_config::get_config().clone();
+
+    // 设置 AppUserModelID（仅 Windows）
+    #[cfg(target_os = "windows")]
+    set_aumid();
 
     println!("{:#?}", app_config);
 

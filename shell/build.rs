@@ -30,6 +30,12 @@ fn main() {
 "#,
         );
 
+        // 设置版本信息
+        res.set("FileDescription", "Vokex Application");
+        res.set("ProductName", "Vokex");
+        res.set("CompanyName", "Vokex");
+        res.set("LegalCopyright", "");
+
         res.compile().unwrap();
     }
 }
