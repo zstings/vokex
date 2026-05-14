@@ -14,11 +14,12 @@
 - **Vite 原生集成**：Vite 插件自动接管开发和构建流程
 - **单文件输出**：前端资源 zlib 压缩后嵌入到可执行文件尾部
 - **双模式运行**：开发时加载 localhost，生产时从自身尾部读取资源
-- **丰富的 API**：15 个模块，117 个公开方法
+- **丰富的 API**：16 个模块，120+ 个公开方法
 - **TypeScript 优先**：完整的类型支持
 - **安全沙箱**：远端页面默认禁用危险 API，支持白名单配置
 - **远程窗口**：支持加载远端 URL 创建子窗口
 - **文件搜索**：支持 glob 模式匹配（`*.txt`, `**/*.js`）
+- **PE 图标注入**：支持将 .ico 图标注入 Windows 可执行文件
 
 ## 快速开始
 
@@ -98,7 +99,7 @@ npm run dev
 npm run build
 
 # 验证构建产物
-npx vokex.app validate release/我的应用.exe
+npx vokex validate release/我的应用.exe
 ```
 
 ## 架构
@@ -135,7 +136,7 @@ npx vokex.app validate release/我的应用.exe
 
 ## API 参考
 
-所有 API 都是异步的，返回 Promise。
+大部分 API 是异步的，返回 Promise。`path` 模块的 `basename()`、`dirname()`、`extname()`、`sep` 为同步方法。
 
 ### app - 应用管理
 
@@ -349,6 +350,9 @@ import { dialog } from "vokex.app";
 | `showErrorBox(options)` | 错误对话框 |
 | `showOpenDialog(options?)` | 打开文件对话框，返回文件路径或 `null` |
 | `showSaveDialog(options?)` | 保存文件对话框，返回文件路径或 `null` |
+| `confirm(options)` | 确认对话框，返回 `boolean` |
+| `info(options)` | 信息提示对话框 |
+| `error(options)` | 错误提示对话框 |
 
 **showMessageBox 支持的 type：** `none` `okCancel` `yesNo` `yesNoCancel`
 **showMessageBox 支持的 icon：** `info` `warning` `error`
@@ -520,10 +524,36 @@ import { shell } from "vokex.app";
 |---|---|
 | `openExternal(url)` | 用默认浏览器打开 URL |
 | `openPath(path)` | 用系统默认程序打开文件/目录 |
-| `execCommand(command, options?)` | 执行 shell 命令，返回 `{ code, stdout, stderr, success }` |
+| `exec(program, args?, options?)` | 执行程序并返回完整结果，返回 `ExecResult` |
+| `spawn(program, args?, options?)` | 启动流式进程，返回 `ShellProcess` 控制器 |
 | `trashItem(path)` | 移到回收站 |
 
+**ExecResult：** `code` `stdout` `stderr` `success`
+
 **ExecOptions：** `cwd` `env`
+
+**ShellProcess 实例方法：**
+
+| 方法 | 说明 |
+|---|---|
+| `pid` | 进程 ID |
+| `onStdout(cb)` | 监听 stdout 输出，返回取消监听函数 |
+| `onStderr(cb)` | 监听 stderr 输出，返回取消监听函数 |
+| `onExit(cb)` | 监听进程退出，返回取消监听函数 |
+| `kill()` | 杀死进程 |
+
+**示例：**
+```typescript
+// 一次性执行
+const result = await shell.exec("git", ["status"]);
+console.log(result.stdout);
+
+// 流式执行
+const child = await shell.spawn("npm", ["run", "dev"], { cwd: "./project" });
+child.onStdout((data) => console.log(data));
+child.onExit((code) => console.log("退出:", code));
+await child.kill();
+```
 
 ### process - 进程信息
 
@@ -580,6 +610,22 @@ import { events } from "vokex.app";
 | `on(event, listener)` | 监听事件，返回取消监听函数 |
 | `off(event, listener)` | 移除监听 |
 | `emit(event, data?)` | 触发事件 |
+
+### path - 路径操作
+
+```typescript
+import { path } from "vokex.app";
+```
+
+| 方法 | 说明 |
+|---|---|
+| `join(...paths)` | 拼接路径片段（异步） |
+| `resolve(...paths)` | 解析为绝对路径（异步） |
+| `normalize(path)` | 规范化路径，处理 `..` 和 `.`（异步） |
+| `basename(path, suffix?)` | 获取路径最后一部分（同步） |
+| `dirname(path)` | 获取目录名（同步） |
+| `extname(path)` | 获取扩展名（同步） |
+| `sep` | 路径分隔符（Windows: `\`，POSIX: `/`，同步属性） |
 
 ## 资源嵌入格式
 
