@@ -18,6 +18,7 @@
 - [process - 进程信息](#process---进程信息)
 - [computer - 系统硬件信息](#computer---系统硬件信息)
 - [storage - 本地持久化存储](#storage---本地持久化存储)
+- [safeStorage - 安全持久化存储](#safestorage---安全持久化存储)
 - [events - 事件总线](#events---事件总线)
 - [path - 路径操作](#path---路径操作)
 
@@ -1418,6 +1419,88 @@ console.log("是否有 theme:", hasTheme);
 
 await storage.removeData("fontSize");
 await storage.clear();
+```
+
+---
+
+## safeStorage - 安全持久化存储
+
+安全的持久化键值对存储 API，数据通过 AES-256-GCM 加密后存储在本地文件中，密钥由系统安全区（Windows 凭据管理器/macOS 钥匙串）保护。适用于存储 API 密钥、用户 Token 等敏感数据。
+
+```typescript
+import { safeStorage } from "vokex.app";
+```
+
+### 类型定义
+
+```typescript
+interface SafeStorageAPI {
+  setItem(key: string, value: any): Promise<void>;
+  getItem(key: string): Promise<any>;
+  removeItem(key: string): Promise<void>;
+  clear(): Promise<void>;
+  keys(): Promise<string[]>;
+  has(key: string): Promise<boolean>;
+}
+```
+
+### 方法说明
+
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `setItem(key, value)` | `key: string`, `value: any` | `Promise<void>` | 加密存储数据 |
+| `getItem(key)` | `key: string` | `Promise<any>` | 解密读取数据 |
+| `removeItem(key)` | `key: string` | `Promise<void>` | 删除指定键 |
+| `clear()` | 无 | `Promise<void>` | 清空所有安全存储 |
+| `keys()` | 无 | `Promise<string[]>` | 获取所有键名 |
+| `has(key)` | `key: string` | `Promise<boolean>` | 检查键是否存在 |
+
+### 安全机制
+
+| 特性 | 说明 |
+|------|------|
+| 加密算法 | AES-256-GCM（认证加密，防篡改） |
+| 密钥管理 | 首次启动时生成 32 字节随机 Master Key，存储在系统安全区 |
+| 存储位置 | `%LOCALAPPDATA%/{identifier}/safeStorage.json.enc`（Windows） |
+| 密钥存储 | Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service |
+
+### 与 storage 的区别
+
+| 特性 | storage | safeStorage |
+|------|---------|-------------|
+| 数据格式 | 明文 JSON | AES-256-GCM 加密 |
+| 适用场景 | 主题、配置等非敏感数据 | API 密钥、Token 等敏感数据 |
+| 性能 | 更快（无加解密开销） | 稍慢（加解密需要计算） |
+| 存储文件 | `storage.json` | `safeStorage.json.enc` |
+
+### 使用示例
+
+```typescript
+import { safeStorage } from "vokex.app";
+
+// 存储 API 密钥
+await safeStorage.setItem("openai_key", {
+  provider: "openai",
+  apiKey: "sk-xxxxxxxxxxxx",
+  model: "gpt-4",
+});
+
+// 读取 API 密钥
+const config = await safeStorage.getItem("openai_key");
+console.log(config.apiKey);
+
+// 获取所有键名
+const keys = await safeStorage.keys();
+console.log("安全存储中的键:", keys);
+
+// 检查键是否存在
+const exists = await safeStorage.has("openai_key");
+
+// 删除指定键
+await safeStorage.removeItem("openai_key");
+
+// 清空所有安全存储
+await safeStorage.clear();
 ```
 
 ---

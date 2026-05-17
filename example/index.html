@@ -287,8 +287,21 @@
         </div>
       </div>
 
-      <!-- browserWindow 模块 -->
+      <!-- safeStorage 模块 -->
       <div class="category-content" data-category="11">
+        <div class="subcategory-title">安全存储</div>
+        <div class="button-group">
+          <button id="btn-safe-storage-set">加密存储</button>
+          <button id="btn-safe-storage-get">解密读取</button>
+          <button id="btn-safe-storage-keys">获取所有键</button>
+          <button id="btn-safe-storage-has">检查键存在</button>
+          <button id="btn-safe-storage-remove">删除键</button>
+          <button id="btn-safe-storage-clear">清空存储</button>
+        </div>
+      </div>
+
+      <!-- browserWindow 模块 -->
+      <div class="category-content" data-category="12">
         <div class="subcategory-title">窗口创建</div>
         <div class="button-group">
           <button id="btn-win-create">创建窗口(本地)</button>
@@ -345,7 +358,7 @@
       </div>
 
       <!-- menu 模块 -->
-      <div class="category-content" data-category="12">
+      <div class="category-content" data-category="13">
         <div class="subcategory-title">菜单系统</div>
         <div class="button-group">
           <button id="btn-set-menu">设置菜单栏</button>
@@ -355,7 +368,7 @@
       </div>
 
       <!-- tray 模块 -->
-      <div class="category-content" data-category="13">
+      <div class="category-content" data-category="14">
         <div class="subcategory-title">托盘图标</div>
         <div class="button-group">
           <button id="btn-tray-create">创建托盘</button>
@@ -367,7 +380,7 @@
       </div>
 
       <!-- shortcut 模块 -->
-      <div class="category-content" data-category="14">
+      <div class="category-content" data-category="15">
         <div class="subcategory-title">快捷键</div>
         <div class="button-group">
           <button id="btn-shortcut-register-1">注册 Ctrl+Shift+S</button>
@@ -400,6 +413,7 @@
       'computer 模块',
       'http 模块',
       'storage 模块',
+      'safeStorage 模块',
       'browserWindow 模块',
       'menu 模块',
       'tray 模块',
@@ -436,6 +450,7 @@
   </script>
 
   <script type="module" src="./src/storage.ts"></script>
+  <script type="module" src="./src/safeStorage.ts"></script>
   <script type="module" src="./src/fs.ts"></script>
   <script type="module" src="./src/app.ts"></script>
   <script type="module" src="./src/shell.ts"></script>
