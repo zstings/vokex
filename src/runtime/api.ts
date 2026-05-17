@@ -119,7 +119,7 @@ export { storage } from './apis/storage';
 export { fs, type Stats, type Dirent, type ReadFileOptions, type WriteFileOptions, type RmOptions, type ReaddirOptions, type MkdirOptions, type GlobOptions, type GlobStreamCallbacks } from './apis/fs';
 export { shell } from './apis/shell';
 export { process } from './apis/process';
-export { http, VokexResponse, VokexHeaders, type RequestOptions } from './apis/http';
+export { http, vokexFetch, VokexResponse, VokexHeaders, type RequestOptions, type VokexFetchInit } from './apis/http';
 export { clipboard } from './apis/clipboard';
 export { dialog, type DialogAPI, type MessageBoxOptions, type CustomMessageBoxOptions, type MessageBoxResult, type OpenDialogOptions, type SaveDialogOptions, type ErrorBoxOptions, type FileFilter } from './apis/dialog';
 export { notification } from './apis/notification';

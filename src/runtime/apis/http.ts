@@ -1,4 +1,5 @@
 import vokexCall from "./vokexCall";
+import { events } from "./events";
 
 /**
  * RequestOptions HTTP 请求选项（与 fetch API 一致）
@@ -331,3 +332,166 @@ export const http: HttpAPI = {
     return doRequest(url, { ...options, method: 'DELETE' });
   },
 };
+
+// ─── vokexFetch（标准 fetch 兼容 + SSE 流式）──────────────
+
+/** 任务 ID 计数器，用于生成唯一 taskId */
+let _taskCounter = 0;
+
+/** 生成唯一任务 ID（毫秒时间戳 * 1000 + 计数器） */
+function generateTaskId(): number {
+  return Date.now() * 1000 + (++_taskCounter % 1000);
+}
+
+/** 扩展的请求选项，支持 stream 和 timeout */
+export interface VokexFetchInit extends RequestInit {
+  /** 是否启用流式（SSE）模式 */
+  stream?: boolean;
+  /** 超时时间（秒） */
+  timeout?: number;
+}
+
+/**
+ * 等待响应头到达（阻塞直到 response-start 或 error 事件）
+ */
+function waitForResponseStart(
+  taskId: number,
+  timeout: number = 30000
+): Promise<{ statusCode: number; statusText: string; headers: Record<string, string> }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      unsubStart();
+      unsubErr();
+      reject(new Error(`HTTP response timeout for taskId ${taskId}`));
+    }, timeout);
+
+    const unsubStart = events.on(`http.response-start.${taskId}`, (data: any) => {
+      clearTimeout(timer);
+      unsubStart();
+      unsubErr();
+      resolve({
+        statusCode: data.statusCode,
+        statusText: data.statusText || '',
+        headers: data.headers || {},
+      });
+    });
+
+    const unsubErr = events.on(`http.error.${taskId}`, (data: any) => {
+      clearTimeout(timer);
+      unsubStart();
+      unsubErr();
+      reject(new Error(data.error));
+    });
+  });
+}
+
+/**
+ * 标准 fetch 兼容的 HTTP 请求函数
+ *
+ * - 非流式模式：行为与原生 fetch 一致，返回完整 Response
+ * - 流式模式（stream: true）：返回包含 ReadableStream 的 Response，适用于 SSE 大模型流式输出
+ *
+ * @example
+ * // 普通请求
+ * const resp = await vokexFetch('https://api.example.com/data');
+ * const data = await resp.json();
+ *
+ * // SSE 流式请求
+ * const resp = await vokexFetch('https://api.example.com/chat', { stream: true });
+ * const reader = resp.body!.getReader();
+ * while (true) {
+ *   const { done, value } = await reader.read();
+ *   if (done) break;
+ *   console.log(new TextDecoder().decode(value));
+ * }
+ */
+export async function vokexFetch(
+  input: string | URL,
+  init?: VokexFetchInit
+): Promise<Response> {
+  const url = typeof input === 'string' ? input : input.toString();
+  const isStream = init?.stream === true;
+
+  // ── 非流式路径：复用现有 doRequest，包装为标准 Response ──
+  if (!isStream) {
+    const vokexResp = await doRequest(url, {
+      method: init?.method,
+      headers: init?.headers as Record<string, string>,
+      body: init?.body,
+      timeout: init?.timeout,
+    });
+    const bodyText = await vokexResp.text();
+    return new Response(new TextEncoder().encode(bodyText), {
+      status: vokexResp.status,
+      statusText: vokexResp.statusText,
+      headers: vokexResp.headers.toObject(),
+    });
+  }
+
+  // ── 流式路径 ──
+  const taskId = generateTaskId();
+
+  // 解析 body 和 headers
+  const { body: resolvedBody, headers: resolvedHeaders } = resolveBody(
+    init?.body,
+    init?.headers as Record<string, string>,
+  );
+
+  // 先注册 ReadableStream 的事件监听器（在发送请求前，防止竞态）
+  let chunkUnsub: (() => void) | null = null;
+  let endUnsub: (() => void) | null = null;
+  let errorUnsub: (() => void) | null = null;
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const encoder = new TextEncoder();
+
+      chunkUnsub = events.on(`http.chunk.${taskId}`, (data: { data: string }) => {
+        controller.enqueue(encoder.encode(data.data));
+      });
+
+      endUnsub = events.on(`http.end.${taskId}`, () => {
+        controller.close();
+        cleanupStreamListeners();
+      });
+
+      errorUnsub = events.on(`http.error.${taskId}`, (data: { error: string }) => {
+        controller.error(new Error(data.error));
+        cleanupStreamListeners();
+      });
+    },
+    cancel() {
+      // 流被消费者取消时清理监听器
+      cleanupStreamListeners();
+    },
+  });
+
+  function cleanupStreamListeners() {
+    chunkUnsub?.();
+    endUnsub?.();
+    errorUnsub?.();
+    chunkUnsub = null;
+    endUnsub = null;
+    errorUnsub = null;
+  }
+
+  // 发送 IPC 请求（stream=true + taskId）
+  vokexCall('http.request', {
+    url,
+    method: init?.method,
+    headers: cleanHeaders(resolvedHeaders),
+    body: resolvedBody,
+    timeout: init?.timeout,
+    stream: true,
+    taskId,
+  });
+
+  // 等待响应头到达
+  const responseData = await waitForResponseStart(taskId, (init?.timeout ?? 30) * 1000);
+
+  return new Response(stream, {
+    status: responseData.statusCode,
+    statusText: responseData.statusText,
+    headers: responseData.headers,
+  });
+}

@@ -18,7 +18,7 @@ fs2 = "0.4"
 notify-rust = "4"
 open = "5.1"
 trash = "5.2"
-minreq = { version = "2", features = ["https"] }
+ureq = { version = "2", features = ["tls"] }
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "common-controls-v6"] }
 arboard = { version = "3" }
 raw-window-handle = "0.6"

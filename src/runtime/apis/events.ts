@@ -8,7 +8,8 @@ export const events = {
   on: (event: string, listener: (data: any) => void): (() => void) => {
     const vokex = (window as any).__VOKEX__;
     if (vokex?.on) {
-      return vokex.on(event, listener);
+      vokex.on(event, listener);
+      return () => vokex.off(event, listener);
     }
     return () => {};
   },

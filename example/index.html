@@ -243,10 +243,34 @@
 
       <!-- http 模块 -->
       <div class="category-content" data-category="9">
-        <div class="subcategory-title">HTTP 请求</div>
+        <div class="subcategory-title">基础请求</div>
         <div class="button-group">
-          <button id="btn-http-get">HTTP GET</button>
-          <button id="btn-http-post">HTTP POST</button>
+          <button id="btn-http-get">http.get()</button>
+          <button id="btn-http-post">http.post()</button>
+          <button id="btn-http-put">http.put()</button>
+          <button id="btn-http-delete">http.delete()</button>
+          <button id="btn-http-request">http.request() [PATCH]</button>
+        </div>
+        <div class="subcategory-title">请求配置</div>
+        <div class="button-group">
+          <button id="btn-http-headers">自定义请求头</button>
+          <button id="btn-http-timeout">超时测试</button>
+          <button id="btn-http-error">错误处理</button>
+        </div>
+        <div class="subcategory-title">vokexFetch（标准 fetch）</div>
+        <div class="button-group">
+          <button id="btn-vokex-fetch">vokexFetch GET</button>
+          <button id="btn-vokex-fetch-post">vokexFetch POST</button>
+        </div>
+        <div class="subcategory-title">SSE 流式</div>
+        <div class="button-group">
+          <button id="btn-http-sse">SSE 流式请求</button>
+          <button id="btn-http-sse-llm">SSE 大模型模拟</button>
+        </div>
+        <div class="subcategory-title">高级特性</div>
+        <div class="button-group">
+          <button id="btn-http-headers-class">VokexHeaders 用法</button>
+          <button id="btn-http-clone">Response.clone()</button>
         </div>
       </div>
 

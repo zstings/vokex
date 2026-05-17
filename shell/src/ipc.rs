@@ -257,7 +257,7 @@ fn dispatch(method: &str, params: &serde_json::Value, window_id: u32, raw_hwnd: 
             "storage" => crate::apis::storage::handle(method, params),
             "shell" => crate::apis::shell::handle(method, params, window_id),
             "process" => crate::apis::process::handle(method, params),
-            "http" => crate::apis::http::handle(method, params),
+            "http" => crate::apis::http::handle(method, params, window_id),
             "clipboard" => crate::apis::clipboard::handle(method, params),
             "dialog" => crate::apis::dialog::handle(method, params, window_id, raw_hwnd),
             "notification" => crate::apis::notification::handle(method, params),
