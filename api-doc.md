@@ -153,6 +153,7 @@ interface WindowOptions {
   show?: boolean;
   center?: boolean;
   url?: string;
+  theme?: 'light' | 'dark' | 'system';
 }
 
 interface WindowInfo {
@@ -238,6 +239,8 @@ class BrowserWindow {
   setCursorPosition(x: number, y: number): Promise<void>;
   setCursorGrab(grab: boolean): Promise<void>;
   setCursorVisible(visible: boolean): Promise<void>;
+  setTheme(theme: 'light' | 'dark' | 'system'): Promise<void>;
+  getTheme(): Promise<'light' | 'dark'>;
   sendMessage(message: any, targetWindow: BrowserWindow): Promise<void>;
   on(event: WindowEventType | 'window.message', callback: (data?: any) => void): () => void;
   off(event: WindowEventType | 'window.message', callback: (data?: any) => void): void;
@@ -282,6 +285,7 @@ class BrowserWindow {
 | `show` | `boolean` | `true` | 是否显示 |
 | `center` | `boolean` | `false` | 是否居中 |
 | `url` | `string` | - | 加载的 URL 或本地文件路径 |
+| `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | 窗口主题 |
 
 ### 窗口事件
 
@@ -298,6 +302,25 @@ class BrowserWindow {
 | `enter-full-screen` | 进入全屏 |
 | `leave-full-screen` | 退出全屏 |
 | `window.message` | 收到其他窗口消息 |
+
+### 窗口主题
+
+窗口主题控制原生窗口标题栏和边框的外观样式。
+
+| 方法 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `setTheme(theme)` | `theme: 'light' \| 'dark' \| 'system'` | `Promise<void>` | 设置窗口主题 |
+| `getTheme()` | 无 | `Promise<'light' \| 'dark'>` | 获取当前窗口实际主题 |
+
+**主题值说明**：
+- `'light'` - 浅色主题
+- `'dark'` - 暗黑主题
+- `'system'` - 跟随系统设置（默认）
+
+**注意事项**：
+- `getTheme()` 返回的是实际生效的主题值（`'light'` 或 `'dark'`），不返回 `'system'`
+- 当设置为 `'system'` 时，返回系统当前实际使用的主题
+- 窗口主题仅影响原生窗口装饰（标题栏、边框），Webview 内容需配合 CSS 媒体查询实现暗黑模式
 
 ### 使用示例
 
@@ -324,6 +347,19 @@ const currentWin = browserWindow.getCurrentWindow();
 if (currentWin) {
   await currentWin.sendMessage({ type: "greeting", data: "Hello" }, win);
 }
+
+// 主题切换示例
+const win2 = await browserWindow.create({
+  title: "暗黑模式窗口",
+  width: 800,
+  height: 600,
+  theme: "dark",
+});
+
+// 动态切换主题
+await win2.setTheme("light");
+const currentTheme = await win2.getTheme();
+console.log("当前主题:", currentTheme); // "light" 或 "dark"
 ```
 
 ---
