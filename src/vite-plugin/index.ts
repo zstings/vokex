@@ -42,18 +42,48 @@ export interface VokexPluginOptions {
   icon: string | string[];
   /** 窗口配置 */
   window: {
+    /** 窗口标题 */
     title: string;
+    /** 窗口宽度 */
     width: number;
+    /** 窗口高度 */
     height: number;
+    /** 最小宽度 */
     minWidth?: number;
+    /** 最小高度 */
     minHeight?: number;
+    /** 最大宽度，防止双击标题栏导致窗口膨胀 */
+    maxWidth?: number;
+    /** 最大高度 */
+    maxHeight?: number;
+    /** 是否允许用户调整窗口大小 */
     resizable?: boolean;
+    /** 是否全屏启动 */
     fullscreen?: boolean;
+    /** 是否最大化启动 */
     maximized?: boolean;
+    /** 是否透明窗口 */
     transparent?: boolean;
+    /** 是否显示原生窗口装饰（标题栏、边框） */
     decorations?: boolean;
+    /** 是否始终置顶 */
     alwaysOnTop?: boolean;
+    /** 是否在屏幕中央显示 */
     center?: boolean;
+    /** 窗口初始背景色，十六进制字符串 (e.g. "#1A1A1A")，防止暗黑模式启动白屏瞬闪 */
+    backgroundColor?: string;
+    /** 是否在任务栏隐藏图标，首帧生效防止任务栏图标闪烁 */
+    skipTaskbar?: boolean;
+    /** 初始不透明度 0.0~1.0，防止透明度切换时的视觉突变 */
+    opacity?: number;
+    /** 是否可关闭（禁用关闭按钮） */
+    closable?: boolean;
+    /** 是否可最小化（禁用最小化按钮） */
+    minimizable?: boolean;
+    /** 是否可最大化（禁用最大化按钮） */
+    maximizable?: boolean;
+    /** 防截图/录屏保护，首帧生效 */
+    contentProtection?: boolean;
     /** 应用图标路径 */
     icon?: string;
   };

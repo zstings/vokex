@@ -19,10 +19,30 @@ pub struct AppConfigSx {
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct AppConfigWindowSx {
     pub title: String,
     pub width: u32,
     pub height: u32,
+    pub min_width: Option<u32>,
+    pub min_height: Option<u32>,
+    pub max_width: Option<u32>,
+    pub max_height: Option<u32>,
+    pub resizable: Option<bool>,
+    pub fullscreen: Option<bool>,
+    pub maximized: Option<bool>,
+    pub transparent: Option<bool>,
+    pub decorations: Option<bool>,
+    pub always_on_top: Option<bool>,
+    pub center: Option<bool>,
+    pub background_color: Option<String>,
+    pub skip_taskbar: Option<bool>,
+    pub opacity: Option<f64>,
+    pub closable: Option<bool>,
+    pub minimizable: Option<bool>,
+    pub maximizable: Option<bool>,
+    pub content_protection: Option<bool>,
+    pub icon: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Debug)]
@@ -97,6 +117,7 @@ pub fn init_test_config() {
             title: "Test".to_string(),
             width: 800,
             height: 600,
+            ..Default::default()
         },
         ..Default::default()
     };

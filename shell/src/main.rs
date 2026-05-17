@@ -327,6 +327,94 @@ fn show_context_menu_macos(window_id: u32, menu_json: &serde_json::Value, x: f64
     })
 }
 
+// ==============================
+// 窗口初始化辅助函数
+// ==============================
+
+#[cfg(target_os = "windows")]
+mod win32_window {
+    use raw_window_handle::HasWindowHandle;
+
+    extern "system" {
+        fn GetWindowLongW(hwnd: isize, index: i32) -> i32;
+        fn SetWindowLongW(hwnd: isize, index: i32, value: i32) -> i32;
+        fn SetLayeredWindowAttributes(hwnd: isize, crkey: u32, balpha: u8, flags: u32) -> i32;
+    }
+
+    const GWL_EXSTYLE: i32 = -20;
+    const WS_EX_APPWINDOW: i32 = 0x00040000;
+    const WS_EX_TOOLWINDOW: i32 = 0x00000080;
+    const WS_EX_LAYERED: i32 = 0x00080000;
+    const LWA_ALPHA: u32 = 0x02;
+
+    /// 在窗口首帧显示前从任务栏隐藏（防止任务栏图标闪现后消失）
+    pub fn apply_skip_taskbar(window: &tao::window::Window, skip: bool) {
+        if let Ok(handle) = window.window_handle() {
+            let hwnd = match handle.as_raw() {
+                raw_window_handle::RawWindowHandle::Win32(h) => h.hwnd.get() as isize,
+                _ => return,
+            };
+            unsafe {
+                let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                if skip {
+                    SetWindowLongW(hwnd, GWL_EXSTYLE, (ex_style & !WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW);
+                } else {
+                    SetWindowLongW(hwnd, GWL_EXSTYLE, (ex_style | WS_EX_APPWINDOW) & !WS_EX_TOOLWINDOW);
+                }
+            }
+        }
+    }
+
+    /// 在窗口首帧显示前设置不透明度（防止 1.0→目标值的视觉突变）
+    pub fn apply_opacity(window: &tao::window::Window, opacity: f64) {
+        if let Ok(handle) = window.window_handle() {
+            let hwnd = match handle.as_raw() {
+                raw_window_handle::RawWindowHandle::Win32(h) => h.hwnd.get() as isize,
+                _ => return,
+            };
+            unsafe {
+                let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED);
+                let alpha = if opacity <= 0.0 {
+                    0u8
+                } else if opacity >= 1.0 {
+                    255u8
+                } else {
+                    (opacity * 255.0) as u8
+                };
+                SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+            }
+        }
+    }
+}
+
+/// 解析十六进制颜色字符串为 RGBA 元组（支持 #RGB、#RRGGBB、#RRGGBBAA）
+fn parse_hex_color(color: &str) -> (u8, u8, u8, u8) {
+    let hex = color.trim_start_matches('#');
+    let default_rgb = || {
+        let r = u8::from_str_radix(&hex[0..2.min(hex.len())], 16).unwrap_or(255);
+        let g = u8::from_str_radix(&hex[2..4.min(hex.len())], 16).unwrap_or(255);
+        let b = u8::from_str_radix(&hex[4..6.min(hex.len())], 16).unwrap_or(255);
+        let a = if hex.len() >= 8 {
+            u8::from_str_radix(&hex[6..8], 16).unwrap_or(255)
+        } else {
+            255
+        };
+        (r, g, b, a)
+    };
+
+    match hex.len() {
+        3 => {
+            // #RGB → #RRGGBB
+            let r = u8::from_str_radix(&hex[0..1], 16).unwrap_or(15) * 17;
+            let g = u8::from_str_radix(&hex[1..2], 16).unwrap_or(15) * 17;
+            let b = u8::from_str_radix(&hex[2..3], 16).unwrap_or(15) * 17;
+            (r, g, b, 255)
+        }
+        _ => default_rgb(),
+    }
+}
+
 // 程序入口函数
 fn main() {
     // 记录进程运行的起始时间
@@ -381,12 +469,109 @@ fn main() {
     // 创建窗口（标题、大小、图标 → WindowBuilder）WindowBuilder（窗口壳子）
     let icon = app_config.icon.iter()
         .find_map(|p| load_image(p));
-    let window = WindowBuilder::new()
-        .with_title(app_config.window.title)
-        .with_inner_size(tao::dpi::LogicalSize::new(app_config.window.width, app_config.window.height))
-        .with_window_icon(icon)
-        .build(&event_loop)
-        .unwrap();
+
+    let wc = &app_config.window;
+
+    let mut window_builder = WindowBuilder::new()
+        .with_title(wc.title.clone())
+        .with_inner_size(tao::dpi::LogicalSize::new(wc.width, wc.height))
+        .with_window_icon(icon);
+
+    // 最小尺寸
+    if let (Some(w), Some(h)) = (wc.min_width, wc.min_height) {
+        window_builder = window_builder
+            .with_min_inner_size(tao::dpi::LogicalSize::new(w, h));
+    }
+    // 最大尺寸
+    if let (Some(w), Some(h)) = (wc.max_width, wc.max_height) {
+        window_builder = window_builder
+            .with_max_inner_size(tao::dpi::LogicalSize::new(w, h));
+    }
+    // 可调整大小
+    if let Some(v) = wc.resizable {
+        window_builder = window_builder.with_resizable(v);
+    }
+    // 全屏
+    if wc.fullscreen == Some(true) {
+        window_builder = window_builder
+            .with_fullscreen(Some(tao::window::Fullscreen::Borderless(None)));
+    }
+    // 最大化
+    if wc.maximized == Some(true) {
+        window_builder = window_builder.with_maximized(true);
+    }
+    // 透明
+    if let Some(v) = wc.transparent {
+        window_builder = window_builder.with_transparent(v);
+    }
+    // 窗口装饰
+    if let Some(v) = wc.decorations {
+        window_builder = window_builder.with_decorations(v);
+    }
+    // 置顶
+    if let Some(v) = wc.always_on_top {
+        window_builder = window_builder.with_always_on_top(v);
+    }
+    // 背景色（十六进制 → RGBA）
+    if let Some(ref color) = wc.background_color {
+        let (r, g, b, a) = parse_hex_color(color);
+        window_builder = window_builder.with_background_color((r, g, b, a));
+    }
+    // 可关闭
+    if let Some(v) = wc.closable {
+        window_builder = window_builder.with_closable(v);
+    }
+    // 可最小化
+    if let Some(v) = wc.minimizable {
+        window_builder = window_builder.with_minimizable(v);
+    }
+    // 可最大化
+    if let Some(v) = wc.maximizable {
+        window_builder = window_builder.with_maximizable(v);
+    }
+    // 内容保护（防截图）
+    if let Some(v) = wc.content_protection {
+        window_builder = window_builder.with_content_protection(v);
+    }
+
+    // skip_taskbar 和 opacity 不在 WindowBuilder 中，需要在 build 后立即通过
+    // Win32 API 设置。先创建隐藏窗口，应用属性后再显示，避免首帧闪烁。
+    let needs_post_build = wc.skip_taskbar.is_some() || wc.opacity.is_some();
+    if needs_post_build {
+        window_builder = window_builder.with_visible(false);
+    }
+
+    let window = window_builder.build(&event_loop).unwrap();
+
+    // 跳过任务栏（Windows）
+    if let Some(skip) = wc.skip_taskbar {
+        #[cfg(target_os = "windows")]
+        win32_window::apply_skip_taskbar(&window, skip);
+        #[cfg(not(target_os = "windows"))]
+        let _ = skip;
+    }
+    // 不透明度（Windows）
+    if let Some(opacity) = wc.opacity {
+        #[cfg(target_os = "windows")]
+        win32_window::apply_opacity(&window, opacity);
+        #[cfg(not(target_os = "windows"))]
+        let _ = opacity;
+    }
+    // 居中
+    if wc.center == Some(true) {
+        if let Some(monitor) = window.current_monitor() {
+            let screen_size = monitor.size();
+            let screen_pos = monitor.position();
+            let win_size = window.outer_size();
+            let x = screen_pos.x + ((screen_size.width as i32 - win_size.width as i32) / 2);
+            let y = screen_pos.y + ((screen_size.height as i32 - win_size.height as i32) / 2);
+            window.set_outer_position(tao::dpi::PhysicalPosition::new(x, y));
+        }
+    }
+
+    if needs_post_build {
+        window.set_visible(true);
+    }
     // 创建 WebView（所有窗口共用 web_context）
     let data_dir = get_webview_data_dir(&app_config.identifier);
     let web_context = std::sync::Arc::new(Mutex::new(wry::WebContext::new(Some(data_dir))));
