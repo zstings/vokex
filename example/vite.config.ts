@@ -18,6 +18,7 @@ export default defineConfig(({mode}) => {
           width: 1200,
           height: 800,
           center: true,
+          transparent: true,
         },
         verbose: true,
         devtools: mode == 'development',
