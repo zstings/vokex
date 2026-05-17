@@ -330,6 +330,26 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             w.window.set_content_protection(enabled);
             Ok(json!(true))
         }),
+        // 设置窗口主题
+        "browserWindow.setTheme" => with_window(params, |w| {
+            let theme_str = params.get("theme").and_then(|v| v.as_str()).unwrap_or("system");
+            let theme = match theme_str {
+                "light" => Some(tao::window::Theme::Light),
+                "dark" => Some(tao::window::Theme::Dark),
+                _ => None,
+            };
+            w.window.set_theme(theme);
+            Ok(json!(true))
+        }),
+        // 获取窗口主题
+        "browserWindow.getTheme" => with_window(params, |w| {
+            let theme = match w.window.theme() {
+                tao::window::Theme::Dark => "dark",
+                tao::window::Theme::Light => "light",
+                _ => "light",
+            };
+            Ok(json!(theme))
+        }),
         // 所有工作区可见
         "browserWindow.setVisibleOnAllWorkspaces" => with_window(params, |w| {
             let visible = params.get("visible").and_then(|v| v.as_bool()).unwrap_or(true);

@@ -49,6 +49,8 @@ export interface WindowOptions {
     center?: boolean;
     /** 加载的 URL */
     url?: string;
+    /** 窗口主题 */
+    theme?: 'light' | 'dark' | 'system';
 }
 
 /**
@@ -396,6 +398,17 @@ export class BrowserWindow {
     setCursorVisible(visible: boolean): Promise<void> {
         return vokexCall('browserWindow.setCursorVisible', { id: this.id, visible });
     }
+
+    /** 设置窗口主题 */
+    setTheme(theme: 'light' | 'dark' | 'system'): Promise<void> {
+        return vokexCall('browserWindow.setTheme', { id: this.id, theme });
+    }
+
+    /** 获取窗口主题 */
+    getTheme(): Promise<'light' | 'dark'> {
+        return vokexCall('browserWindow.getTheme', { id: this.id });
+    }
+
     /** 窗口直接通信 */
     sendMessage(message: any, targetWindow: BrowserWindow): Promise<void> {
         return vokexCall('browserWindow.sendMessage', {

@@ -950,3 +950,82 @@ document.getElementById("btn-win-all-workspaces")?.addEventListener("click", asy
     log("提示: setVisibleOnAllWorkspaces 在 Windows 上可能不受支持");
   }
 });
+
+document.getElementById("btn-win-set-theme-dark")?.addEventListener("click", async () => {
+  clear();
+  log("=== win.setTheme('dark') ===");
+  try {
+    if (!mainWindow) {
+      mainWindow = await browserWindow.getCurrentWindow();
+    }
+    if (mainWindow) {
+      await mainWindow.setTheme('dark');
+      log("✅ 窗口主题已设置为暗黑模式");
+      const theme = await mainWindow.getTheme();
+      log(`当前主题: ${theme}`);
+    } else {
+      log("⚠️ 未找到主窗口");
+    }
+  } catch (error: any) {
+    log(`❌ 错误: ${error.message}`);
+  }
+});
+
+document.getElementById("btn-win-set-theme-light")?.addEventListener("click", async () => {
+  clear();
+  log("=== win.setTheme('light') ===");
+  try {
+    if (!mainWindow) {
+      mainWindow = await browserWindow.getCurrentWindow();
+    }
+    if (mainWindow) {
+      await mainWindow.setTheme('light');
+      log("✅ 窗口主题已设置为浅色模式");
+      const theme = await mainWindow.getTheme();
+      log(`当前主题: ${theme}`);
+    } else {
+      log("⚠️ 未找到主窗口");
+    }
+  } catch (error: any) {
+    log(`❌ 错误: ${error.message}`);
+  }
+});
+
+document.getElementById("btn-win-set-theme-system")?.addEventListener("click", async () => {
+  clear();
+  log("=== win.setTheme('system') ===");
+  try {
+    if (!mainWindow) {
+      mainWindow = await browserWindow.getCurrentWindow();
+    }
+    if (mainWindow) {
+      await mainWindow.setTheme('system');
+      log("✅ 窗口主题已设置为跟随系统");
+      const theme = await mainWindow.getTheme();
+      log(`当前实际主题: ${theme}`);
+      log("提示: getTheme 返回的是系统当前主题的实际值");
+    } else {
+      log("⚠️ 未找到主窗口");
+    }
+  } catch (error: any) {
+    log(`❌ 错误: ${error.message}`);
+  }
+});
+
+document.getElementById("btn-win-get-theme")?.addEventListener("click", async () => {
+  clear();
+  log("=== win.getTheme() ===");
+  try {
+    if (!mainWindow) {
+      mainWindow = await browserWindow.getCurrentWindow();
+    }
+    if (mainWindow) {
+      const theme = await mainWindow.getTheme();
+      log(`✅ 当前窗口主题: ${theme}`);
+    } else {
+      log("⚠️ 未找到主窗口");
+    }
+  } catch (error: any) {
+    log(`❌ 错误: ${error.message}`);
+  }
+});
