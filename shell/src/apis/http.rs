@@ -1,7 +1,9 @@
 use serde_json::{json, Value};
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::thread;
 use std::time::Duration;
+use ureq::tls::{TlsConfig, TlsProvider};
+use ureq::typestate::{WithBody, WithoutBody};
 
 /// 根据状态码返回标准 HTTP 状态文本
 fn status_text(code: u16) -> &'static str {
@@ -72,53 +74,77 @@ fn status_text(code: u16) -> &'static str {
     }
 }
 
-/// 构建 ureq Agent，设置超时
+/// 构建 ureq Agent，设置超时 + native-tls
 fn build_agent(timeout: u64) -> ureq::Agent {
-    let builder = ureq::AgentBuilder::new();
-    builder.timeout(Duration::from_secs(timeout)).build()
-}
+    let tls_config = TlsConfig::builder()
+        .provider(TlsProvider::NativeTls)
+        .build();
 
-/// 构建请求，应用 headers
-fn build_request(agent: &ureq::Agent, method: &str, url: &str, headers: &Value) -> Result<ureq::Request, String> {
-    let mut request = match method {
-        "GET" => agent.get(url),
-        "POST" => agent.post(url),
-        "PUT" => agent.put(url),
-        "DELETE" => agent.delete(url),
-        "PATCH" => agent.patch(url),
-        "HEAD" => agent.head(url),
-        "OPTIONS" => agent.request("OPTIONS", url),
-        _ => return Err(format!("Unsupported HTTP method: {}", method)),
-    };
+    let config = ureq::Agent::config_builder()
+        .tls_config(tls_config)
+        .timeout_global(Some(Duration::from_secs(timeout)))
+        .build();
 
-    if let Some(obj) = headers.as_object() {
-        for (key, val) in obj {
-            if let Some(s) = val.as_str() {
-                request = request.set(key, s);
-            }
-        }
-    }
-
-    Ok(request)
-}
-
-/// 提取响应头为 JSON Map
-fn extract_headers(response: &ureq::Response) -> serde_json::Map<String, Value> {
-    let mut map = serde_json::Map::new();
-    for name in response.headers_names() {
-        if let Some(value) = response.header(&name) {
-            map.insert(name, Value::String(value.to_string()));
-        }
-    }
-    map
+    ureq::Agent::new_with_config(config)
 }
 
 /// 发送请求（带 body 或不带 body）
-fn send_request(request: ureq::Request, body: Option<&str>) -> Result<ureq::Response, String> {
+fn send_request(
+    request: ureq::RequestBuilder<WithBody>,
+    body: Option<&str>,
+) -> Result<ureq::http::Response<ureq::Body>, ureq::Error> {
     match body {
-        Some(b) => request.send_string(b).map_err(|e| format!("HTTP request failed: {}", e)),
-        None => request.call().map_err(|e| format!("HTTP request failed: {}", e)),
+        Some(b) => request.send(b),
+        None => request.send_empty(),
     }
+}
+
+/// 发送无 body 请求
+fn send_request_no_body(
+    request: ureq::RequestBuilder<WithoutBody>,
+) -> Result<ureq::http::Response<ureq::Body>, ureq::Error> {
+    request.call()
+}
+
+/// 构建请求，应用 headers
+fn apply_headers(
+    mut request: ureq::RequestBuilder<WithBody>,
+    headers: &Value,
+) -> ureq::RequestBuilder<WithBody> {
+    if let Some(obj) = headers.as_object() {
+        for (key, val) in obj {
+            if let Some(s) = val.as_str() {
+                request = request.header(key.as_str(), s);
+            }
+        }
+    }
+    request
+}
+
+/// 构建无 body 请求，应用 headers
+fn apply_headers_no_body(
+    mut request: ureq::RequestBuilder<WithoutBody>,
+    headers: &Value,
+) -> ureq::RequestBuilder<WithoutBody> {
+    if let Some(obj) = headers.as_object() {
+        for (key, val) in obj {
+            if let Some(s) = val.as_str() {
+                request = request.header(key.as_str(), s);
+            }
+        }
+    }
+    request
+}
+
+/// 提取响应头为 JSON Map
+fn extract_headers(response: &ureq::http::Response<ureq::Body>) -> serde_json::Map<String, Value> {
+    let mut map = serde_json::Map::new();
+    for (name, value) in response.headers() {
+        if let Ok(v) = value.to_str() {
+            map.insert(name.as_str().to_string(), Value::String(v.to_string()));
+        }
+    }
+    map
 }
 
 /// 处理普通（非流式）请求
@@ -129,12 +155,49 @@ fn handle_normal_request(
     headers: &Value,
     body: Option<&str>,
 ) -> Result<Value, String> {
-    let request = build_request(&agent, method, url, headers)?;
-    let response = send_request(request, body)?;
+    let response = match method {
+        "GET" => {
+            let req = agent.get(url);
+            let req = apply_headers_no_body(req, headers);
+            send_request_no_body(req)
+        }
+        "HEAD" => {
+            let req = agent.head(url);
+            let req = apply_headers_no_body(req, headers);
+            send_request_no_body(req)
+        }
+        "OPTIONS" => {
+            let req = agent.delete(url); // ureq 3.x 没有 options 方法，用 request
+            let req = apply_headers_no_body(req, headers);
+            send_request_no_body(req)
+        }
+        "POST" => {
+            let req = agent.post(url);
+            let req = apply_headers(req, headers);
+            send_request(req, body)
+        }
+        "PUT" => {
+            let req = agent.put(url);
+            let req = apply_headers(req, headers);
+            send_request(req, body)
+        }
+        "DELETE" => {
+            let req = agent.delete(url);
+            let req = apply_headers_no_body(req, headers);
+            send_request_no_body(req)
+        }
+        "PATCH" => {
+            let req = agent.patch(url);
+            let req = apply_headers(req, headers);
+            send_request(req, body)
+        }
+        _ => return Err(format!("Unsupported HTTP method: {}", method)),
+    }
+    .map_err(|e| format!("HTTP request failed: {}", e))?;
 
-    let status = response.status();
+    let status = response.status().as_u16();
     let headers_map = extract_headers(&response);
-    let body_str = response.into_string().unwrap_or_default();
+    let body_str = response.into_body().read_to_string().unwrap_or_default();
 
     Ok(json!({
         "statusCode": status,
@@ -155,11 +218,43 @@ fn handle_stream_request(
     task_id: u64,
     window_id: u32,
 ) -> Result<Value, String> {
-    let request = build_request(&agent, method, url, headers)?;
-    let response = send_request(request, body)?;
+    let response = match method {
+        "GET" => {
+            let req = agent.get(url);
+            let req = apply_headers_no_body(req, headers);
+            send_request_no_body(req)
+        }
+        "HEAD" => {
+            let req = agent.head(url);
+            let req = apply_headers_no_body(req, headers);
+            send_request_no_body(req)
+        }
+        "POST" => {
+            let req = agent.post(url);
+            let req = apply_headers(req, headers);
+            send_request(req, body)
+        }
+        "PUT" => {
+            let req = agent.put(url);
+            let req = apply_headers(req, headers);
+            send_request(req, body)
+        }
+        "DELETE" => {
+            let req = agent.delete(url);
+            let req = apply_headers_no_body(req, headers);
+            send_request_no_body(req)
+        }
+        "PATCH" => {
+            let req = agent.patch(url);
+            let req = apply_headers(req, headers);
+            send_request(req, body)
+        }
+        _ => return Err(format!("Unsupported HTTP method: {}", method)),
+    }
+    .map_err(|e| format!("HTTP request failed: {}", e))?;
 
     // 立即提取响应元数据
-    let status = response.status();
+    let status = response.status().as_u16();
     let status_text_str = status_text(status);
     let headers_map = extract_headers(&response);
 
@@ -178,7 +273,7 @@ fn handle_stream_request(
     let task_id_clone = task_id;
     let window_id_clone = window_id;
     thread::spawn(move || {
-        let reader: Box<dyn Read + Send> = response.into_reader();
+        let reader = response.into_body().into_reader();
         let mut buf_reader = BufReader::new(reader);
         let mut line = String::new();
 
