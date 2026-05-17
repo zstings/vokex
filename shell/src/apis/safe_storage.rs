@@ -130,7 +130,14 @@ fn load_safe_storage() -> Result<HashMap<String, Value>, String> {
 
     let key = get_or_create_master_key()?;
     let cipher = create_cipher(&key)?;
-    let plaintext = decrypt(&cipher, &encrypted_data)?;
+    let plaintext = match decrypt(&cipher, &encrypted_data) {
+        Ok(data) => data,
+        Err(_) => {
+            // 解密失败（密钥不匹配或文件损坏），丢弃旧数据重新开始
+            eprintln!("[safeStorage] Decryption failed, resetting storage. This may happen if the master key in the system keyring was changed or the file was corrupted.");
+            return Ok(HashMap::new());
+        }
+    };
 
     let map: HashMap<String, Value> = serde_json::from_slice(&plaintext)
         .map_err(|e| format!("Failed to parse safe storage data: {}", e))?;
