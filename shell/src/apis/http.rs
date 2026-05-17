@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use std::io::{BufRead, BufReader};
 use std::thread;
 use std::time::Duration;
-use ureq::tls::{TlsConfig, TlsProvider};
+use ureq::tls::TlsConfig;
 use ureq::typestate::{WithBody, WithoutBody};
 
 /// 根据状态码返回标准 HTTP 状态文本
@@ -74,11 +74,9 @@ fn status_text(code: u16) -> &'static str {
     }
 }
 
-/// 构建 ureq Agent，设置超时 + native-tls
+/// 构建 ureq Agent，设置超时 + rustls（自带 webpki 根证书）
 fn build_agent(timeout: u64) -> ureq::Agent {
-    let tls_config = TlsConfig::builder()
-        .provider(TlsProvider::NativeTls)
-        .build();
+    let tls_config = TlsConfig::builder().build();
 
     let config = ureq::Agent::config_builder()
         .tls_config(tls_config)
