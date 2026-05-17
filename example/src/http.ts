@@ -1,5 +1,5 @@
 
-import { http, vokexFetch } from "vokex.app";
+import { http } from "vokex.app";
 import { clear, log } from "./utils";
 
 // ─── http.get ─────────────────────────────────────────────
@@ -83,14 +83,14 @@ document.getElementById("btn-http-delete")?.addEventListener("click", async () =
   }
 });
 
-// ─── http.request（通用请求）─────────────────────────────────
+// ─── http.fetch（通用请求）─────────────────────────────────
 
 document.getElementById("btn-http-request")?.addEventListener("click", async () => {
   clear();
-  log("=== http.request() ===");
+  log("=== http.fetch() PATCH ===");
   log("PATCH: https://jsonplaceholder.typicode.com/posts/1");
   try {
-    const response = await http.request("https://jsonplaceholder.typicode.com/posts/1", {
+    const response = await http.fetch("https://jsonplaceholder.typicode.com/posts/1", {
       method: "PATCH",
       headers: {
         "X-Custom-Header": "vokex-demo",
@@ -144,7 +144,6 @@ document.getElementById("btn-http-timeout")?.addEventListener("click", async () 
   log("=== 超时测试 ===");
   log("请求一个 5 秒延迟的接口，但超时设为 2 秒");
   try {
-    // httpbin/delay/5 会延迟 5 秒响应
     const response = await http.get("https://httpbin.org/delay/5", {
       timeout: 2,
     });
@@ -161,7 +160,6 @@ document.getElementById("btn-http-error")?.addEventListener("click", async () =>
   clear();
   log("=== 错误处理 ===");
   try {
-    // 404 错误
     log("--- 404 测试 ---");
     const resp404 = await http.get("https://httpbin.org/status/404");
     log(`状态码: ${resp404.status}`);
@@ -172,7 +170,6 @@ document.getElementById("btn-http-error")?.addEventListener("click", async () =>
   }
 
   try {
-    // 500 错误
     log("\n--- 500 测试 ---");
     const resp500 = await http.get("https://httpbin.org/status/500");
     log(`状态码: ${resp500.status}`);
@@ -183,7 +180,6 @@ document.getElementById("btn-http-error")?.addEventListener("click", async () =>
   }
 
   try {
-    // 连接失败
     log("\n--- 连接失败测试 ---");
     await http.get("http://127.0.0.1:1/");
   } catch (error: any) {
@@ -191,15 +187,15 @@ document.getElementById("btn-http-error")?.addEventListener("click", async () =>
   }
 });
 
-// ─── vokexFetch（标准 fetch 兼容）──────────────────────────
+// ─── http.fetch（标准 fetch 兼容）──────────────────────────
 
 document.getElementById("btn-vokex-fetch")?.addEventListener("click", async () => {
   clear();
-  log("=== vokexFetch() ===");
+  log("=== http.fetch() ===");
   log("标准 fetch 兼容模式");
   log("GET: https://jsonplaceholder.typicode.com/posts/1");
   try {
-    const response = await vokexFetch("https://jsonplaceholder.typicode.com/posts/1");
+    const response = await http.fetch("https://jsonplaceholder.typicode.com/posts/1");
     log(`类型: ${response.constructor.name}`);
     log(`状态码: ${response.status}`);
     log(`状态文本: ${response.statusText}`);
@@ -213,19 +209,19 @@ document.getElementById("btn-vokex-fetch")?.addEventListener("click", async () =
   }
 });
 
-// ─── vokexFetch POST ──────────────────────────────────────
+// ─── http.fetch POST ──────────────────────────────────────
 
 document.getElementById("btn-vokex-fetch-post")?.addEventListener("click", async () => {
   clear();
-  log("=== vokexFetch() POST ===");
+  log("=== http.fetch() POST ===");
   log("POST: https://jsonplaceholder.typicode.com/posts");
   try {
-    const response = await vokexFetch("https://jsonplaceholder.typicode.com/posts", {
+    const response = await http.fetch("https://jsonplaceholder.typicode.com/posts", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ title: "vokexFetch", body: "标准 fetch 兼容", userId: 1 }),
+      body: JSON.stringify({ title: "http.fetch", body: "标准 fetch 兼容", userId: 1 }),
     });
     log(`状态码: ${response.status}`);
     log(`ok: ${response.ok}`);
@@ -242,12 +238,12 @@ document.getElementById("btn-vokex-fetch-post")?.addEventListener("click", async
 document.getElementById("btn-http-sse")?.addEventListener("click", async () => {
   clear();
   log("=== SSE 流式请求 ===");
-  log("使用 vokexFetch + stream: true");
+  log("使用 http.fetch + stream: true");
   log("请求: https://httpbin.org/stream/5");
   log("（每行实时推送，模拟大模型打字机效果）\n");
 
   try {
-    const response = await vokexFetch("https://httpbin.org/stream/5", {
+    const response = await http.fetch("https://httpbin.org/stream/5", {
       stream: true,
     });
 
@@ -284,7 +280,7 @@ document.getElementById("btn-http-sse-llm")?.addEventListener("click", async () 
   log("请求: https://httpbin.org/stream/20\n");
 
   try {
-    const response = await vokexFetch("https://httpbin.org/stream/20", {
+    const response = await http.fetch("https://httpbin.org/stream/20", {
       stream: true,
       timeout: 30,
     });
@@ -306,7 +302,6 @@ document.getElementById("btn-http-sse-llm")?.addEventListener("click", async () 
 
       for (const line of lines) {
         if (line.trim()) {
-          // 模拟打字机效果：每个 token 一行
           log(line.trim());
         }
       }
@@ -322,11 +317,11 @@ document.getElementById("btn-http-sse-llm")?.addEventListener("click", async () 
   }
 });
 
-// ─── VokexHeaders 演示 ───────────────────────────────────
+// ─── Headers 不区分大小写 ────────────────────────────────
 
 document.getElementById("btn-http-headers-class")?.addEventListener("click", async () => {
   clear();
-  log("=== VokexHeaders 不区分大小写 ===");
+  log("=== Headers 不区分大小写 ===");
   try {
     const response = await http.get("https://jsonplaceholder.typicode.com/todos/1");
 
@@ -346,28 +341,27 @@ document.getElementById("btn-http-headers-class")?.addEventListener("click", asy
   }
 });
 
-// ─── VokexResponse.clone 演示 ────────────────────────────
+// ─── Response.clone 演示 ─────────────────────────────────
 
 document.getElementById("btn-http-clone")?.addEventListener("click", async () => {
   clear();
-  log("=== VokexResponse.clone() ===");
-  log("克隆响应，允许多次读取 body\n");
+  log("=== Response.clone() ===");
+  log("克隆必须在读取 body 之前调用\n");
   try {
     const response = await http.get("https://jsonplaceholder.typicode.com/todos/1");
 
-    // 第一次读取
+    // 先克隆，再分别读取
+    const cloned = response.clone();
     const text1 = await response.text();
-    log(`第一次读取 (text):`);
+    const text2 = await cloned.text();
+
+    log(`原始 (text):`);
     log(text1.substring(0, 100) + "...");
     log(`bodyUsed: ${response.bodyUsed}`);
 
-    // 克隆后再次读取
-    const cloned = response.clone();
-    const text2 = await cloned.text();
-    log(`\n克隆后读取 (text):`);
+    log(`\n克隆 (text):`);
     log(text2.substring(0, 100) + "...");
-    log(`\n克隆体 bodyUsed: ${cloned.bodyUsed}`);
-    log(`原始体 bodyUsed: ${response.bodyUsed}`);
+    log(`bodyUsed: ${cloned.bodyUsed}`);
   } catch (error: any) {
     log(`❌ 错误: ${error.message}`);
   }
