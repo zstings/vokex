@@ -276,7 +276,7 @@ export const http: HttpAPI = {
       chunkUnsub = endUnsub = errorUnsub = null;
     }
 
-    vokexCall('http.request', {
+    const requestPromise = vokexCall('http.request', {
       url,
       method: init?.method,
       headers: cleanHeaders(resolvedHeaders),
@@ -286,7 +286,16 @@ export const http: HttpAPI = {
       taskId,
     });
 
-    const responseData = await waitForResponseStart(taskId, (init?.timeout ?? 30) * 1000);
+    const responsePromise = waitForResponseStart(taskId, (init?.timeout ?? 30) * 1000);
+
+    try {
+      await Promise.race([requestPromise, responsePromise]);
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
+
+    const responseData = await responsePromise;
 
     return new Response(stream, {
       status: responseData.statusCode,
