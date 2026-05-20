@@ -86,12 +86,8 @@ fn is_async_api(method: &str) -> bool {
         "fs.readdir" | "fs.mkdir" | "fs.stat" |
         "fs.exists" | "fs.copyFile" | "fs.rename" |
         "fs.glob" | "fs.globStream" |
-        "http.request" | "http.get" | "http.post" |
-        "http.put" | "http.delete" |
         "shell.exec" | "shell.spawn" | "shell.kill" |
-        "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo" |
-        "dialog.showMessageBox" | "dialog.showErrorBox" |
-        "dialog.showOpenDialog" | "dialog.showSaveDialog"
+        "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo"
     )
 }
 
@@ -190,9 +186,67 @@ pub fn process_request(window_id: u32, body: &str) {
         return;
     }
 
+    // 专门处理 http.request，区分 stream 状态
+    if req.method == "http.request" {
+        let stream = req.params.get("stream").and_then(|v| v.as_bool()).unwrap_or(false);
+        
+        if !stream {
+            // 普通非流式请求：推入线程池，通过 HandleAsyncResponse 返回结果
+            let request_id = req.id;
+            let proxy = GLOBAL_PROXY.lock().unwrap().clone();
+            let method = req.method.clone();
+            let params = req.params.clone();
+            let wid = window_id;
+
+            THREAD_POOL.with(|tp| {
+                if let Some(pool) = tp.borrow().as_ref() {
+                    let pool = pool.clone();
+                    pool.run(move || {
+                        let raw_hwnd = extract_parent_hwnd(&method, wid);
+                        let response = match dispatch(&method, &params, wid, raw_hwnd) {
+                            Ok(result) => IpcResponse { id: request_id, result: Some(result), error: None },
+                            Err(err) => IpcResponse { id: request_id, result: None, error: Some(err) },
+                        };
+
+                        if let Some(proxy) = proxy {
+                            let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
+                                window_id,
+                                id: response.id,
+                                result: response.result,
+                                error: response.error,
+                            });
+                        }
+                    });
+                }
+            });
+            return;
+        } else {
+            // 流式请求：推入线程池，但不通过 HandleAsyncResponse 返回结果
+            // 流式请求已经在 http.rs 内部有 std::thread::spawn 处理事件推送
+            let proxy = GLOBAL_PROXY.lock().unwrap().clone();
+            let method = req.method.clone();
+            let params = req.params.clone();
+            let wid = window_id;
+
+            THREAD_POOL.with(|tp| {
+                if let Some(pool) = tp.borrow().as_ref() {
+                    let pool = pool.clone();
+                    pool.run(move || {
+                        let raw_hwnd = extract_parent_hwnd(&method, wid);
+                        // 执行 dispatch，流式请求会在内部启动自己的后台线程推送事件
+                        // 这里不处理返回值，也不触发 HandleAsyncResponse
+                        let _ = dispatch(&method, &params, wid, raw_hwnd);
+                    });
+                }
+            });
+            return;
+        }
+    }
+
     if is_async_api(&req.method) {
         // 异步 API：投递到线程池执行，结果通过 proxy 回主线程
         // dialog 模块需要父窗口句柄，在主线程预提取（MANAGER 是 thread_local）
+        let async_request_id = req.id;
         let raw_hwnd = extract_parent_hwnd(&req.method, window_id);
         let proxy = GLOBAL_PROXY.lock().unwrap().clone();
         let method = req.method.clone();
@@ -204,8 +258,8 @@ pub fn process_request(window_id: u32, body: &str) {
                 let pool = pool.clone();
                 pool.run(move || {
                     let response = match dispatch(&method, &params, wid, raw_hwnd) {
-                        Ok(result) => IpcResponse { id: req.id, result: Some(result), error: None },
-                        Err(err) => IpcResponse { id: req.id, result: None, error: Some(err) },
+                        Ok(result) => IpcResponse { id: async_request_id, result: Some(result), error: None },
+                        Err(err) => IpcResponse { id: async_request_id, result: None, error: Some(err) },
                     };
 
                     if let Some(proxy) = proxy {
