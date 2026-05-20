@@ -190,57 +190,68 @@ pub fn process_request(window_id: u32, body: &str) {
     if req.method == "http.request" {
         let stream = req.params.get("stream").and_then(|v| v.as_bool()).unwrap_or(false);
         
-        if !stream {
-            // 普通非流式请求：推入线程池，通过 HandleAsyncResponse 返回结果
-            let request_id = req.id;
-            let proxy = GLOBAL_PROXY.lock().unwrap().clone();
-            let method = req.method.clone();
-            let params = req.params.clone();
-            let wid = window_id;
+        // 无论是否流式，都推入线程池，避免阻塞主线程
+        let request_id = req.id;
+        let proxy = GLOBAL_PROXY.lock().unwrap().clone();
+        let method = req.method.clone();
+        let params = req.params.clone();
+        let wid = window_id;
 
-            THREAD_POOL.with(|tp| {
-                if let Some(pool) = tp.borrow().as_ref() {
-                    let pool = pool.clone();
-                    pool.run(move || {
-                        let raw_hwnd = extract_parent_hwnd(&method, wid);
-                        let response = match dispatch(&method, &params, wid, raw_hwnd) {
-                            Ok(result) => IpcResponse { id: request_id, result: Some(result), error: None },
-                            Err(err) => IpcResponse { id: request_id, result: None, error: Some(err) },
-                        };
+        THREAD_POOL.with(|tp| {
+            if let Some(pool) = tp.borrow().as_ref() {
+                let pool = pool.clone();
+                pool.run(move || {
+                    let raw_hwnd = extract_parent_hwnd(&method, wid);
+                    let response = match dispatch(&method, &params, wid, raw_hwnd) {
+                        Ok(result) => IpcResponse { id: request_id, result: Some(result), error: None },
+                        Err(err) => IpcResponse { id: request_id, result: None, error: Some(err) },
+                    };
 
-                        if let Some(proxy) = proxy {
-                            let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
-                                window_id,
-                                id: response.id,
-                                result: response.result,
-                                error: response.error,
-                            });
-                        }
-                    });
-                }
-            });
-            return;
-        } else {
-            // 流式请求：推入线程池，但不通过 HandleAsyncResponse 返回结果
-            // 流式请求已经在 http.rs 内部有 std::thread::spawn 处理事件推送
-            let proxy = GLOBAL_PROXY.lock().unwrap().clone();
-            let method = req.method.clone();
-            let params = req.params.clone();
-            let wid = window_id;
+                    if let Some(proxy) = proxy {
+                        let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
+                            window_id,
+                            id: response.id,
+                            result: response.result,
+                            error: response.error,
+                        });
+                    }
+                });
+            }
+        });
+        return;
+    }
+    
+    // 专门处理其他流式API：fs.globStream 和 shell.spawn
+    if req.method == "fs.globStream" || req.method == "shell.spawn" {
+        // 这些API也会阻塞等待，推入线程池
+        let async_request_id = req.id;
+        let raw_hwnd = extract_parent_hwnd(&req.method, window_id);
+        let proxy = GLOBAL_PROXY.lock().unwrap().clone();
+        let method = req.method.clone();
+        let params = req.params.clone();
+        let wid = window_id;
 
-            THREAD_POOL.with(|tp| {
-                if let Some(pool) = tp.borrow().as_ref() {
-                    let pool = pool.clone();
-                    pool.run(move || {
-                        let raw_hwnd = extract_parent_hwnd(&method, wid);
-                        // 执行 dispatch，流式请求会在内部启动自己的后台线程推送事件
-                        // 这里不处理返回值，也不触发 HandleAsyncResponse
-                        let _ = dispatch(&method, &params, wid, raw_hwnd);
-                    });
-                }
-            });
-            return;
-        }
+        THREAD_POOL.with(|tp| {
+            if let Some(pool) = tp.borrow().as_ref() {
+                let pool = pool.clone();
+                pool.run(move || {
+                    let response = match dispatch(&method, &params, wid, raw_hwnd) {
+                        Ok(result) => IpcResponse { id: async_request_id, result: Some(result), error: None },
+                        Err(err) => IpcResponse { id: async_request_id, result: None, error: Some(err) },
+                    };
+
+                    if let Some(proxy) = proxy {
+                        let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
+                            window_id,
+                            id: response.id,
+                            result: response.result,
+                            error: response.error,
+                        });
+                    }
+                });
+            }
+        });
+        return;
     }
 
     if is_async_api(&req.method) {
