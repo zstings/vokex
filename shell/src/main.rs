@@ -44,12 +44,12 @@ pub static START_TIME: AtomicU64 = AtomicU64::new(0);
 
 /// 线程池
 struct ThreadPool {
-    sender: mpsc::Sender<Box<dyn FnOnce() + Send>>,
+    sender: mpsc::SyncSender<Box<dyn FnOnce() + Send>>,
 }
 
 impl ThreadPool {
     fn new(size: usize) -> Self {
-        let (sender, receiver) = mpsc::channel::<Box<dyn FnOnce() + Send>>();
+        let (sender, receiver) = mpsc::sync_channel::<Box<dyn FnOnce() + Send>>(100);
         let receiver = Arc::new(Mutex::new(receiver));
         for _ in 0..size {
             let receiver = receiver.clone();
@@ -63,7 +63,7 @@ impl ThreadPool {
     }
 
     fn run<F: FnOnce() + Send + 'static>(&self, task: F) {
-        let _ = self.sender.send(Box::new(task));
+        let _ = self.sender.try_send(Box::new(task));
     }
 }
 
@@ -451,8 +451,10 @@ fn main() {
     let proxy = event_loop.create_proxy();
     ipc::set_proxy(proxy.clone());
 
-    let thread_pool = Arc::new(ThreadPool::new(4));
-    ipc::set_thread_pool(thread_pool.clone());
+    // 创建两个专用线程池
+    let network_pool = Arc::new(ThreadPool::new(2)); // 网络请求线程池
+    let io_pool = Arc::new(ThreadPool::new(2)); // 文件IO/存储线程池
+    ipc::set_thread_pools(network_pool.clone(), io_pool.clone());
 
     // 右键菜单点击事件转发到事件循环（muda 处理右键菜单的事件）
     let menu_proxy = proxy.clone();

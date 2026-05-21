@@ -400,6 +400,14 @@
           <button id="btn-shortcut-list">列出全部</button>
         </div>
       </div>
+      <!-- 竞态测试模块 -->
+      <div class="category-content" data-category="15">
+        <div class="subcategory-title">竞态测试</div>
+        <div class="button-group">
+          <button id="btn-test-http-request">网络请求+弹窗</button>
+          <button id="btn-test-http-storage">网络请求+存储</button>
+        </div>
+      </div>
 
     </div>
     <div class="content">
@@ -424,7 +432,8 @@
       'browserWindow 模块',
       'menu 模块',
       'tray 模块',
-      'shortcut 模块'
+      'shortcut 模块',
+      '竞态测试模块',
     ];
 
     let currentCategoryIndex = 0;
@@ -472,5 +481,6 @@
   <script type="module" src="./src/tray.ts"></script>
   <script type="module" src="./src/shortcut.ts"></script>
   <script type="module" src="./src/path.ts"></script>
+  <script type="module" src="./src/test.ts"></script>
 </body>
 </html>

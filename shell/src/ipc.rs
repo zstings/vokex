@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
-use std::sync::{Mutex, LazyLock};
+use std::sync::{Arc, LazyLock, Mutex};
 use tao::event_loop::EventLoopProxy;
-use std::sync::Arc;
 
 #[derive(Deserialize, Debug)]
 pub struct IpcRequest {
@@ -26,14 +24,26 @@ struct IpcResponse {
 static GLOBAL_PROXY: LazyLock<Mutex<Option<EventLoopProxy<crate::IpcTask>>>> =
     LazyLock::new(|| Mutex::new(None));
 
-thread_local! {
-    pub static THREAD_POOL: RefCell<Option<Arc<crate::ThreadPool>>> = RefCell::new(None);
+/// 线程池类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PoolType {
+    /// 网络请求线程池
+    Network,
+    /// 文件IO/存储线程池
+    IO,
 }
 
-pub fn set_thread_pool(pool: Arc<crate::ThreadPool>) {
-    THREAD_POOL.with(|p| {
-        *p.borrow_mut() = Some(pool);
-    });
+/// 网络请求专用线程池
+static NETWORK_POOL: LazyLock<Mutex<Option<Arc<crate::ThreadPool>>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+/// 文件IO/存储专用线程池
+static IO_POOL: LazyLock<Mutex<Option<Arc<crate::ThreadPool>>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+pub fn set_thread_pools(network_pool: Arc<crate::ThreadPool>, io_pool: Arc<crate::ThreadPool>) {
+    *NETWORK_POOL.lock().unwrap() = Some(network_pool);
+    *IO_POOL.lock().unwrap() = Some(io_pool);
 }
 
 pub fn set_proxy(proxy: EventLoopProxy<crate::IpcTask>) {
@@ -78,17 +88,61 @@ fn extract_parent_hwnd(method: &str, window_id: u32) -> Option<isize> {
     })
 }
 
-/// 判断是否为耗时 API（需要在线程池中执行）
-fn is_async_api(method: &str) -> bool {
-    matches!(
+/// 判断 API 属于哪个线程池
+fn get_pool_type(method: &str) -> Option<PoolType> {
+    if method == "http.request" {
+        return Some(PoolType::Network);
+    }
+    if matches!(
         method,
         "fs.readFile" | "fs.writeFile" | "fs.rm" |
         "fs.readdir" | "fs.mkdir" | "fs.stat" |
         "fs.exists" | "fs.copyFile" | "fs.rename" |
         "fs.glob" | "fs.globStream" |
-        "shell.exec" | "shell.spawn" | "shell.kill" |
-        "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo"
-    )
+        "safeStorage.setData" | "safeStorage.getData" | "safeStorage.getKeys" |
+        "safeStorage.has" | "safeStorage.removeData" | "safeStorage.clear" |
+        "storage.setData" | "storage.getData" | "storage.getKeys" |
+        "storage.has" | "storage.removeData" | "storage.clear"
+    ) {
+        return Some(PoolType::IO);
+    }
+    None
+}
+
+/// 辅助函数：将任务发送到指定线程池
+fn send_to_pool(
+    pool_type: PoolType,
+    request_id: u64,
+    method: String,
+    params: serde_json::Value,
+    window_id: u32,
+) {
+    let raw_hwnd = extract_parent_hwnd(&method, window_id);
+    let proxy = GLOBAL_PROXY.lock().unwrap().clone();
+    let wid = window_id;
+
+    let pool = match pool_type {
+        PoolType::Network => NETWORK_POOL.lock().unwrap().clone(),
+        PoolType::IO => IO_POOL.lock().unwrap().clone(),
+    };
+
+    if let Some(pool) = pool {
+        pool.run(move || {
+            let response = match dispatch(&method, &params, wid, raw_hwnd) {
+                Ok(result) => IpcResponse { id: request_id, result: Some(result), error: None },
+                Err(err) => IpcResponse { id: request_id, result: None, error: Some(err) },
+            };
+
+            if let Some(proxy) = proxy {
+                let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
+                    window_id: wid,
+                    id: response.id,
+                    result: response.result,
+                    error: response.error,
+                });
+            }
+        });
+    }
 }
 
 pub fn process_request(window_id: u32, body: &str) {
@@ -186,104 +240,9 @@ pub fn process_request(window_id: u32, body: &str) {
         return;
     }
 
-    // 专门处理 http.request，区分 stream 状态
-    if req.method == "http.request" {
-        let stream = req.params.get("stream").and_then(|v| v.as_bool()).unwrap_or(false);
-        
-        // 无论是否流式，都推入线程池，避免阻塞主线程
-        let request_id = req.id;
-        let proxy = GLOBAL_PROXY.lock().unwrap().clone();
-        let method = req.method.clone();
-        let params = req.params.clone();
-        let wid = window_id;
-
-        THREAD_POOL.with(|tp| {
-            if let Some(pool) = tp.borrow().as_ref() {
-                let pool = pool.clone();
-                pool.run(move || {
-                    let raw_hwnd = extract_parent_hwnd(&method, wid);
-                    let response = match dispatch(&method, &params, wid, raw_hwnd) {
-                        Ok(result) => IpcResponse { id: request_id, result: Some(result), error: None },
-                        Err(err) => IpcResponse { id: request_id, result: None, error: Some(err) },
-                    };
-
-                    if let Some(proxy) = proxy {
-                        let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
-                            window_id,
-                            id: response.id,
-                            result: response.result,
-                            error: response.error,
-                        });
-                    }
-                });
-            }
-        });
-        return;
-    }
-    
-    // 专门处理其他流式API：fs.globStream 和 shell.spawn
-    if req.method == "fs.globStream" || req.method == "shell.spawn" {
-        // 这些API也会阻塞等待，推入线程池
-        let async_request_id = req.id;
-        let raw_hwnd = extract_parent_hwnd(&req.method, window_id);
-        let proxy = GLOBAL_PROXY.lock().unwrap().clone();
-        let method = req.method.clone();
-        let params = req.params.clone();
-        let wid = window_id;
-
-        THREAD_POOL.with(|tp| {
-            if let Some(pool) = tp.borrow().as_ref() {
-                let pool = pool.clone();
-                pool.run(move || {
-                    let response = match dispatch(&method, &params, wid, raw_hwnd) {
-                        Ok(result) => IpcResponse { id: async_request_id, result: Some(result), error: None },
-                        Err(err) => IpcResponse { id: async_request_id, result: None, error: Some(err) },
-                    };
-
-                    if let Some(proxy) = proxy {
-                        let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
-                            window_id,
-                            id: response.id,
-                            result: response.result,
-                            error: response.error,
-                        });
-                    }
-                });
-            }
-        });
-        return;
-    }
-
-    if is_async_api(&req.method) {
-        // 异步 API：投递到线程池执行，结果通过 proxy 回主线程
-        // dialog 模块需要父窗口句柄，在主线程预提取（MANAGER 是 thread_local）
-        let async_request_id = req.id;
-        let raw_hwnd = extract_parent_hwnd(&req.method, window_id);
-        let proxy = GLOBAL_PROXY.lock().unwrap().clone();
-        let method = req.method.clone();
-        let params = req.params.clone();
-        let wid = window_id;
-
-        THREAD_POOL.with(|tp| {
-            if let Some(pool) = tp.borrow().as_ref() {
-                let pool = pool.clone();
-                pool.run(move || {
-                    let response = match dispatch(&method, &params, wid, raw_hwnd) {
-                        Ok(result) => IpcResponse { id: async_request_id, result: Some(result), error: None },
-                        Err(err) => IpcResponse { id: async_request_id, result: None, error: Some(err) },
-                    };
-
-                    if let Some(proxy) = proxy {
-                        let _ = proxy.send_event(crate::IpcTask::HandleAsyncResponse {
-                            window_id,
-                            id: response.id,
-                            result: response.result,
-                            error: response.error,
-                        });
-                    }
-                });
-            }
-        });
+    // 检查是否需要发送到线程池
+    if let Some(pool_type) = get_pool_type(&req.method) {
+        send_to_pool(pool_type, req.id, req.method, req.params, window_id);
     } else {
         // 同步 API：直接在主线程执行
         let raw_hwnd = extract_parent_hwnd(&req.method, window_id);

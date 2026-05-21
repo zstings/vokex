@@ -143,22 +143,13 @@ document.getElementById("btn-http-timeout")?.addEventListener("click", async () 
   clear();
   log("=== 超时测试 ===");
   log("请求一个 5 秒延迟的接口，但超时设为 2 秒");
-  // try {
-  //   const response = await http.get("https://httpbin.org/delay/5", {
-  //     timeout: 2,
-  //   });
-  // } catch (error: any) {
-  //   log(`预期的超时错误: ${error.message}`);
-  // }
-  http.get("https://httpbin.org/delay/5", {
-    timeout: 2,
-  }).catch((error: any) => {
+  try {
+    await http.get("https://httpbin.org/delay/5", {
+      timeout: 2,
+    });
+  } catch (error: any) {
     log(`预期的超时错误: ${error.message}`);
-  });
-  dialog.info({
-    title: 'timeout test',
-    message: '立即弹出了，没有等待 2 秒',
-  });
+  }
 });
 
 // ─── 错误处理 ─────────────────────────────────────────────
