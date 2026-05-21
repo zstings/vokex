@@ -99,6 +99,8 @@ fn get_pool_type(method: &str) -> Option<PoolType> {
         "fs.readdir" | "fs.mkdir" | "fs.stat" |
         "fs.exists" | "fs.copyFile" | "fs.rename" |
         "fs.glob" | "fs.globStream" |
+        "shell.exec" | "shell.spawn" | "shell.kill" |
+        "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo" |
         "safeStorage.setData" | "safeStorage.getData" | "safeStorage.getKeys" |
         "safeStorage.has" | "safeStorage.removeData" | "safeStorage.clear" |
         "storage.setData" | "storage.getData" | "storage.getKeys" |
