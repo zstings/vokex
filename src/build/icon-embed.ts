@@ -117,11 +117,17 @@ export function injectVersionInfo(exePath: string, options: VersionInfoOptions):
       : `${options.version}.0.0.0`;
 
     // 使用现有版本信息或创建新的
-    const lang = { lang: 0x0409, codepage: 1200 }; // en-US, Unicode
+    // 保留壳原有的语言标签，避免新旧值并存
+    let lang = { lang: 0, codepage: 1200 }; // 默认 Neutral
     let versionInfo: Resource.VersionInfo;
 
     if (existingVersions.length > 0) {
       versionInfo = existingVersions[0];
+      // 使用壳原有的语言标签
+      const existingLangs = versionInfo.getAvailableLanguages();
+      if (existingLangs.length > 0) {
+        lang = existingLangs[0];
+      }
     } else {
       versionInfo = Resource.VersionInfo.create(lang.lang, {}, []);
     }
