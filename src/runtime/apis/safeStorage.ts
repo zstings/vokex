@@ -29,15 +29,15 @@ export interface SafeStorageAPI {
 export const safeStorage: SafeStorageAPI = {
     /** 存储数据 */
     setItem: (key: string, value: any): Promise<void> =>
-        vokexCall('safeStorage.setData', { key, value }),
+        vokexCall('safeStorage.setItem', { key, value }),
 
     /** 读取数据 */
     getItem: (key: string): Promise<any> =>
-        vokexCall('safeStorage.getData', { key }),
+        vokexCall('safeStorage.getItem', { key }),
 
     /** 删除指定键 */
     removeItem: (key: string): Promise<void> =>
-        vokexCall('safeStorage.removeData', { key }),
+        vokexCall('safeStorage.removeItem', { key }),
 
     /** 清空所有存储 */
     clear: (): Promise<void> =>
@@ -45,7 +45,7 @@ export const safeStorage: SafeStorageAPI = {
 
     /** 获取所有键名 */
     keys: (): Promise<string[]> =>
-        vokexCall('safeStorage.getKeys', {}),
+        vokexCall('safeStorage.keys', {}),
 
     /** 检查键是否存在 */
     has: (key: string): Promise<boolean> =>

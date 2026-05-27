@@ -61,7 +61,7 @@ fn reset_storage_cache() {
 
 pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
     match method {
-        "storage.setData" => {
+        "storage.setItem" => {
             let key = params.get("key").and_then(|v| v.as_str())
                 .ok_or("Missing 'key' parameter")?;
             let value = params.get("value")
@@ -75,7 +75,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             Ok(json!(true))
         }
 
-        "storage.getData" => {
+        "storage.getItem" => {
             let key = params.get("key").and_then(|v| v.as_str())
                 .ok_or("Missing 'key' parameter")?;
             ensure_cache()?;
@@ -87,7 +87,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             }
         }
 
-        "storage.getKeys" => {
+        "storage.keys" => {
             ensure_cache()?;
             let cache = STORAGE_CACHE.lock().unwrap();
             if let Some(map) = cache.as_ref() {
@@ -110,7 +110,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             }
         }
 
-        "storage.removeData" => {
+        "storage.removeItem" => {
             let key = params.get("key").and_then(|v| v.as_str())
                 .ok_or("Missing 'key' parameter")?;
             ensure_cache()?;
@@ -145,7 +145,7 @@ mod tests {
 
     fn cleanup_keys(keys: &[&str]) {
         for key in keys {
-            let _ = handle("storage.removeData", &json!({"key": key}));
+            let _ = handle("storage.removeItem", &json!({"key": key}));
         }
     }
 
@@ -153,8 +153,8 @@ mod tests {
     fn test_set_and_get_data() {
         setup();
         let key = "t1_user";
-        handle("storage.setData", &json!({"key": key, "value": {"name": "张三", "age": 25}})).unwrap();
-        let result = handle("storage.getData", &json!({"key": key})).unwrap();
+        handle("storage.setItem", &json!({"key": key, "value": {"name": "张三", "age": 25}})).unwrap();
+        let result = handle("storage.getItem", &json!({"key": key})).unwrap();
         assert_eq!(result["name"], json!("张三"));
         assert_eq!(result["age"], json!(25));
         cleanup_keys(&[key]);
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn test_get_nonexistent_key() {
         setup();
-        let result = handle("storage.getData", &json!({"key": "t2_no_such_key"})).unwrap();
+        let result = handle("storage.getItem", &json!({"key": "t2_no_such_key"})).unwrap();
         assert_eq!(result, json!(null));
     }
 
@@ -171,10 +171,10 @@ mod tests {
     fn test_get_keys() {
         setup();
         let keys = ["t3_a", "t3_b"];
-        handle("storage.setData", &json!({"key": keys[0], "value": 1})).unwrap();
-        handle("storage.setData", &json!({"key": keys[1], "value": 2})).unwrap();
+        handle("storage.setItem", &json!({"key": keys[0], "value": 1})).unwrap();
+        handle("storage.setItem", &json!({"key": keys[1], "value": 2})).unwrap();
 
-        let result = handle("storage.getKeys", &json!({})).unwrap();
+        let result = handle("storage.keys", &json!({})).unwrap();
         let all_keys: Vec<String> = result.as_array().unwrap().iter()
             .map(|v| v.as_str().unwrap().to_string())
             .collect();
@@ -187,7 +187,7 @@ mod tests {
     fn test_has() {
         setup();
         let key = "t4_exists";
-        handle("storage.setData", &json!({"key": key, "value": "y"})).unwrap();
+        handle("storage.setItem", &json!({"key": key, "value": "y"})).unwrap();
         assert!(handle("storage.has", &json!({"key": key})).unwrap().as_bool().unwrap());
         assert!(!handle("storage.has", &json!({"key": "t4_missing"})).unwrap().as_bool().unwrap());
         cleanup_keys(&[key]);
@@ -197,24 +197,24 @@ mod tests {
     fn test_remove_data() {
         setup();
         let key = "t5_rm";
-        handle("storage.setData", &json!({"key": key, "value": "bye"})).unwrap();
+        handle("storage.setItem", &json!({"key": key, "value": "bye"})).unwrap();
         assert!(handle("storage.has", &json!({"key": key})).unwrap().as_bool().unwrap());
 
-        handle("storage.removeData", &json!({"key": key})).unwrap();
+        handle("storage.removeItem", &json!({"key": key})).unwrap();
         assert!(!handle("storage.has", &json!({"key": key})).unwrap().as_bool().unwrap());
-        assert_eq!(handle("storage.getData", &json!({"key": key})).unwrap(), json!(null));
+        assert_eq!(handle("storage.getItem", &json!({"key": key})).unwrap(), json!(null));
     }
 
     #[test]
     fn test_clear() {
         setup();
         let keys = ["t6_k1", "t6_k2"];
-        handle("storage.setData", &json!({"key": keys[0], "value": 1})).unwrap();
-        handle("storage.setData", &json!({"key": keys[1], "value": 2})).unwrap();
+        handle("storage.setItem", &json!({"key": keys[0], "value": 1})).unwrap();
+        handle("storage.setItem", &json!({"key": keys[1], "value": 2})).unwrap();
 
         handle("storage.clear", &json!({})).unwrap();
 
-        let result = handle("storage.getKeys", &json!({})).unwrap();
+        let result = handle("storage.keys", &json!({})).unwrap();
         assert_eq!(result.as_array().unwrap().len(), 0);
         // 清理可能残留
         cleanup_keys(&keys);
@@ -224,9 +224,9 @@ mod tests {
     fn test_overwrite_value() {
         setup();
         let key = "t7_ow";
-        handle("storage.setData", &json!({"key": key, "value": "old"})).unwrap();
-        handle("storage.setData", &json!({"key": key, "value": "new"})).unwrap();
-        let result = handle("storage.getData", &json!({"key": key})).unwrap();
+        handle("storage.setItem", &json!({"key": key, "value": "old"})).unwrap();
+        handle("storage.setItem", &json!({"key": key, "value": "new"})).unwrap();
+        let result = handle("storage.getItem", &json!({"key": key})).unwrap();
         assert_eq!(result, json!("new"));
         cleanup_keys(&[key]);
     }
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_set_missing_params() {
         setup();
-        assert!(handle("storage.setData", &json!({"key": "x"})).is_err());
-        assert!(handle("storage.setData", &json!({"value": 1})).is_err());
+        assert!(handle("storage.setItem", &json!({"key": "x"})).is_err());
+        assert!(handle("storage.setItem", &json!({"value": 1})).is_err());
     }
 }

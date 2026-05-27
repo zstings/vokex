@@ -101,10 +101,10 @@ fn get_pool_type(method: &str) -> Option<PoolType> {
         "fs.glob" | "fs.globStream" |
         "shell.exec" | "shell.spawn" | "shell.kill" |
         "process.getUptime" | "process.getCpuUsage" | "process.getMemoryInfo" |
-        "safeStorage.setData" | "safeStorage.getData" | "safeStorage.getKeys" |
-        "safeStorage.has" | "safeStorage.removeData" | "safeStorage.clear" |
-        "storage.setData" | "storage.getData" | "storage.getKeys" |
-        "storage.has" | "storage.removeData" | "storage.clear"
+        "safeStorage.setItem" | "safeStorage.getItem" | "safeStorage.keys" |
+        "safeStorage.has" | "safeStorage.removeItem" | "safeStorage.clear" |
+        "storage.setItem" | "storage.getItem" | "storage.keys" |
+        "storage.has" | "storage.removeItem" | "storage.clear"
     ) {
         return Some(PoolType::IO);
     }

@@ -178,7 +178,7 @@ fn reset_safe_storage_cache() {
 /// 处理 safeStorage API 请求
 pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
     match method {
-        "safeStorage.setData" => {
+        "safeStorage.setItem" => {
             let key = params
                 .get("key")
                 .and_then(|v| v.as_str())
@@ -195,7 +195,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             Ok(json!(true))
         }
 
-        "safeStorage.getData" => {
+        "safeStorage.getItem" => {
             let key = params
                 .get("key")
                 .and_then(|v| v.as_str())
@@ -209,7 +209,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             }
         }
 
-        "safeStorage.getKeys" => {
+        "safeStorage.keys" => {
             ensure_cache()?;
             let cache = SAFE_STORAGE_CACHE.lock().unwrap();
             if let Some(map) = cache.as_ref() {
@@ -234,7 +234,7 @@ pub fn handle(method: &str, params: &Value) -> Result<Value, String> {
             }
         }
 
-        "safeStorage.removeData" => {
+        "safeStorage.removeItem" => {
             let key = params
                 .get("key")
                 .and_then(|v| v.as_str())
@@ -275,7 +275,7 @@ mod tests {
 
     fn cleanup_keys(keys: &[&str]) {
         for key in keys {
-            let _ = handle("safeStorage.removeData", &json!({"key": key}));
+            let _ = handle("safeStorage.removeItem", &json!({"key": key}));
         }
     }
 
@@ -331,10 +331,10 @@ mod tests {
         let key = "t1_api_key";
         let value = json!({"provider": "openai", "key": "sk-xxx"});
 
-        handle("safeStorage.setData", &json!({"key": key, "value": value}))
+        handle("safeStorage.setItem", &json!({"key": key, "value": value}))
             .unwrap();
 
-        let result = handle("safeStorage.getData", &json!({"key": key})).unwrap();
+        let result = handle("safeStorage.getItem", &json!({"key": key})).unwrap();
         assert_eq!(result["provider"], json!("openai"));
         assert_eq!(result["key"], json!("sk-xxx"));
 
@@ -345,7 +345,7 @@ mod tests {
     #[serial]
     fn test_get_nonexistent_key() {
         setup();
-        let result = handle("safeStorage.getData", &json!({"key": "nonexistent"})).unwrap();
+        let result = handle("safeStorage.getItem", &json!({"key": "nonexistent"})).unwrap();
         assert_eq!(result, json!(null));
     }
 
@@ -354,7 +354,7 @@ mod tests {
     fn test_has() {
         setup();
         let key = "t3_exists";
-        handle("safeStorage.setData", &json!({"key": key, "value": "secret"})).unwrap();
+        handle("safeStorage.setItem", &json!({"key": key, "value": "secret"})).unwrap();
 
         assert!(handle("safeStorage.has", &json!({"key": key})).unwrap().as_bool().unwrap());
         assert!(!handle("safeStorage.has", &json!({"key": "t3_missing"})).unwrap().as_bool().unwrap());
@@ -367,12 +367,12 @@ mod tests {
     fn test_remove_data() {
         setup();
         let key = "t4_rm";
-        handle("safeStorage.setData", &json!({"key": key, "value": "bye"})).unwrap();
+        handle("safeStorage.setItem", &json!({"key": key, "value": "bye"})).unwrap();
         assert!(handle("safeStorage.has", &json!({"key": key})).unwrap().as_bool().unwrap());
 
-        handle("safeStorage.removeData", &json!({"key": key})).unwrap();
+        handle("safeStorage.removeItem", &json!({"key": key})).unwrap();
         assert!(!handle("safeStorage.has", &json!({"key": key})).unwrap().as_bool().unwrap());
-        assert_eq!(handle("safeStorage.getData", &json!({"key": key})).unwrap(), json!(null));
+        assert_eq!(handle("safeStorage.getItem", &json!({"key": key})).unwrap(), json!(null));
     }
 
     #[test]
@@ -380,12 +380,12 @@ mod tests {
     fn test_clear() {
         setup();
         let keys = ["t5_k1", "t5_k2"];
-        handle("safeStorage.setData", &json!({"key": keys[0], "value": 1})).unwrap();
-        handle("safeStorage.setData", &json!({"key": keys[1], "value": 2})).unwrap();
+        handle("safeStorage.setItem", &json!({"key": keys[0], "value": 1})).unwrap();
+        handle("safeStorage.setItem", &json!({"key": keys[1], "value": 2})).unwrap();
 
         handle("safeStorage.clear", &json!({})).unwrap();
 
-        let result = handle("safeStorage.getKeys", &json!({})).unwrap();
+        let result = handle("safeStorage.keys", &json!({})).unwrap();
         assert_eq!(result.as_array().unwrap().len(), 0);
     }
 
@@ -394,9 +394,9 @@ mod tests {
     fn test_overwrite_value() {
         setup();
         let key = "t6_ow";
-        handle("safeStorage.setData", &json!({"key": key, "value": "old"})).unwrap();
-        handle("safeStorage.setData", &json!({"key": key, "value": "new"})).unwrap();
-        let result = handle("safeStorage.getData", &json!({"key": key})).unwrap();
+        handle("safeStorage.setItem", &json!({"key": key, "value": "old"})).unwrap();
+        handle("safeStorage.setItem", &json!({"key": key, "value": "new"})).unwrap();
+        let result = handle("safeStorage.getItem", &json!({"key": key})).unwrap();
         assert_eq!(result, json!("new"));
         cleanup_keys(&[key]);
     }
@@ -406,12 +406,12 @@ mod tests {
     fn test_data_persists_after_reload() {
         setup();
         let key = "t7_persist";
-        handle("safeStorage.setData", &json!({"key": key, "value": "persist_me"})).unwrap();
+        handle("safeStorage.setItem", &json!({"key": key, "value": "persist_me"})).unwrap();
 
         // 模拟重新加载
         reset_safe_storage_cache();
 
-        let result = handle("safeStorage.getData", &json!({"key": key})).unwrap();
+        let result = handle("safeStorage.getItem", &json!({"key": key})).unwrap();
         assert_eq!(result, json!("persist_me"));
 
         cleanup_keys(&[key]);
