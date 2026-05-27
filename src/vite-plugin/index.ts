@@ -263,6 +263,11 @@ export function vokexPlugin(options: VokexPluginOptions): Plugin {
         shellPath,
         outputPath,
         iconPath: icoPath,
+        versionInfo: {
+          name: options.name,
+          version: options.version || "1.0.0",
+          identifier: options.identifier,
+        },
         verbose: options.verbose,
       });
 

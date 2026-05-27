@@ -9,7 +9,7 @@ import { existsSync } from "fs";
 import { resolve, relative } from "path";
 import { createHash } from "crypto";
 import { createDeflate } from "zlib";
-import { injectIcon } from "./icon-embed.js";
+import { injectIcon, injectVersionInfo, type VersionInfoOptions } from "./icon-embed.js";
 
 /** 魔数：VOKEX */
 const MAGIC = Buffer.from("VOKEX");
@@ -170,6 +170,8 @@ export async function build(options: {
   outputPath: string;
   /** 应用图标路径（相对于输入目录的 PNG 文件） */
   iconPath?: string;
+  /** 版本信息（仅 Windows） */
+  versionInfo?: VersionInfoOptions;
   /** 是否显示详细日志 */
   verbose?: boolean;
 }): Promise<BuildResult> {
@@ -256,6 +258,24 @@ export async function build(options: {
     } else if (verbose) {
       console.warn(`[vokex] 图标文件未在构建产物中找到: ${iconRelPath}`);
     }
+  }
+
+  // 注入版本信息到 PE 资源段（仅 Windows）
+  // 必须在嵌入 VOKEX 资源之前注入
+  if (process.platform === "win32" && options.versionInfo) {
+    const tempVerPath = outputPath + ".tmp-ver";
+    await writeFile(tempVerPath, shellBuffer);
+    const ok = injectVersionInfo(tempVerPath, options.versionInfo);
+    if (ok) {
+      shellBuffer = await readFile(tempVerPath);
+      if (verbose) {
+        console.log(`[vokex]    版本信息: 已注入 ${options.versionInfo.name} v${options.versionInfo.version}`);
+      }
+    } else {
+      console.warn(`[vokex]    版本信息注入失败`);
+    }
+    // 清理临时文件
+    try { await unlink(tempVerPath); } catch {}
   }
 
   // 构建资源尾部（偏移量必须在图标注入之后计算）
