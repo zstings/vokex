@@ -1415,11 +1415,11 @@ import { storage } from "vokex.app";
 
 ```typescript
 interface StorageAPI {
-  setData(key: string, value: any): Promise<void>;
-  getData(key: string): Promise<any>;
-  getKeys(): Promise<string[]>;
+  setItem(key: string, value: any): Promise<void>;
+  getItem(key: string): Promise<any>;
+  keys(): Promise<string[]>;
   has(key: string): Promise<boolean>;
-  removeData(key: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
   clear(): Promise<void>;
 }
 ```
@@ -1428,11 +1428,11 @@ interface StorageAPI {
 
 | 方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
-| `setData(key, value)` | `key: string`, `value: any` | `Promise<void>` | 存储数据（JSON 序列化） |
-| `getData(key)` | `key: string` | `Promise<any>` | 读取数据 |
-| `getKeys()` | 无 | `Promise<string[]>` | 获取所有键名 |
+| `setItem(key, value)` | `key: string`, `value: any` | `Promise<void>` | 存储数据（JSON 序列化） |
+| `getItem(key)` | `key: string` | `Promise<any>` | 读取数据 |
+| `keys()` | 无 | `Promise<string[]>` | 获取所有键名 |
 | `has(key)` | `key: string` | `Promise<boolean>` | 检查键是否存在 |
-| `removeData(key)` | `key: string` | `Promise<void>` | 删除指定键 |
+| `removeItem(key)` | `key: string` | `Promise<void>` | 删除指定键 |
 | `clear()` | 无 | `Promise<void>` | 清空所有数据 |
 
 ### 使用示例
@@ -1440,20 +1440,20 @@ interface StorageAPI {
 ```typescript
 import { storage } from "vokex.app";
 
-await storage.setData("user", { name: "Alice", age: 30 });
-await storage.setData("theme", "dark");
-await storage.setData("fontSize", 14);
+await storage.setItem("user", { name: "Alice", age: 30 });
+await storage.setItem("theme", "dark");
+await storage.setItem("fontSize", 14);
 
-const user = await storage.getData("user");
+const user = await storage.getItem("user");
 console.log(user.name);
 
-const keys = await storage.getKeys();
+const keys = await storage.keys();
 console.log("所有键:", keys);
 
 const hasTheme = await storage.has("theme");
 console.log("是否有 theme:", hasTheme);
 
-await storage.removeData("fontSize");
+await storage.removeItem("fontSize");
 await storage.clear();
 ```
 
@@ -1508,6 +1508,7 @@ interface SafeStorageAPI {
 | 适用场景 | 主题、配置等非敏感数据 | API 密钥、Token 等敏感数据 |
 | 性能 | 更快（无加解密开销） | 稍慢（加解密需要计算） |
 | 存储文件 | `storage.json` | `safeStorage.json.enc` |
+| API 风格 | `setItem`/`getItem`/`removeItem`/`keys` | `setItem`/`getItem`/`removeItem`/`keys` |
 
 ### 使用示例
 

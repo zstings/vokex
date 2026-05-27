@@ -26,12 +26,12 @@ document.getElementById("btn-test-http-storage")?.addEventListener("click", asyn
   http.get("https://httpbin.org/delay/5").then(() => {
     log('5秒后打印了接口响应');
   });
-  storage.setData("timeoutTest", {
+  storage.setItem("timeoutTest", {
     title: 'timeout test',
     message: '立即存储了，没有等待接口响应',
   }).then(async () => {
     log("立即存储了，没有等待接口响应:" + new Date().toLocaleTimeString());
-    const data = await storage.getData("timeoutTest");
+    const data = await storage.getItem("timeoutTest");
     log('立即存储的数据:' + JSON.stringify(data));
   });
   safeStorage.setItem("timeoutTestSafe", {

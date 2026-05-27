@@ -2,7 +2,7 @@ import { log, clear } from './utils'
 import { storage } from "vokex.app";
 document.getElementById("btn-storage-set")?.addEventListener("click", async () => {
   clear();
-  log("=== storage.setData() ===");
+  log("=== storage.setItem() ===");
   try {
     const testData = {
       name: "Vokex",
@@ -10,7 +10,7 @@ document.getElementById("btn-storage-set")?.addEventListener("click", async () =
       features: ["desktop", "rust", "typescript"],
       timestamp: Date.now(),
     };
-    await storage.setData("test_key", testData);
+    await storage.setItem("test_key", testData);
     log("✅ 已存储数据:");
     log(`  key: test_key`);
     log(`  value: ${JSON.stringify(testData, null, 2)}`);
@@ -21,9 +21,9 @@ document.getElementById("btn-storage-set")?.addEventListener("click", async () =
 
 document.getElementById("btn-storage-get")?.addEventListener("click", async () => {
   clear();
-  log("=== storage.getData() ===");
+  log("=== storage.getItem() ===");
   try {
-    const data = await storage.getData("test_key");
+    const data = await storage.getItem("test_key");
     if (data === null) {
       log("⚠️ 键 test_key 不存在，请先点击「设置存储」");
     } else {
@@ -37,9 +37,9 @@ document.getElementById("btn-storage-get")?.addEventListener("click", async () =
 
 document.getElementById("btn-storage-keys")?.addEventListener("click", async () => {
   clear();
-  log("=== storage.getKeys() ===");
+  log("=== storage.keys() ===");
   try {
-    const keys = await storage.getKeys();
+    const keys = await storage.keys();
     log(`存储中共有 ${keys.length} 个键:`);
     keys.forEach((key, i) => log(`  [${i}] ${key}`));
   } catch (error: any) {
@@ -63,12 +63,12 @@ document.getElementById("btn-storage-has")?.addEventListener("click", async () =
 
 document.getElementById("btn-storage-remove")?.addEventListener("click", async () => {
   clear();
-  log("=== storage.removeData() ===");
+  log("=== storage.removeItem() ===");
   try {
     const existsBefore = await storage.has("test_key");
     log(`删除前 "test_key" 是否存在: ${existsBefore}`);
     if (existsBefore) {
-      await storage.removeData("test_key");
+      await storage.removeItem("test_key");
       const existsAfter = await storage.has("test_key");
       log(`✅ 已删除 "test_key"`);
       log(`删除后 "test_key" 是否存在: ${existsAfter}`);
@@ -84,10 +84,10 @@ document.getElementById("btn-storage-clear")?.addEventListener("click", async ()
   clear();
   log("=== storage.clear() ===");
   try {
-    const keysBefore = await storage.getKeys();
+    const keysBefore = await storage.keys();
     log(`清空前共有 ${keysBefore.length} 个键`);
     await storage.clear();
-    const keysAfter = await storage.getKeys();
+    const keysAfter = await storage.keys();
     log(`✅ 已清空所有存储`);
     log(`清空后共有 ${keysAfter.length} 个键`);
   } catch (error: any) {
